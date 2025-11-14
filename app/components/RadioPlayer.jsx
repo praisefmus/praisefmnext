@@ -22,8 +22,8 @@ export default function RadioPlayer() {
     const STREAM_URL = 'https://stream.zeno.fm/hvwifp8ezc6tv';
     const NOWPLAYING_API = 'https://api.zeno.fm/mounts/metadata/subscribe/hvwifp8ezc6tv';
     const LASTFM_API_KEY = '7744c8f90ee053fc761e0e23bfa00b89';
-    // Link correto para o logo da rádio no seu repositório
-    const STREAM_LOGO_URL = 'https://raw.githubusercontent.com/praisefmus/praisefmnext/main/image/LOGOPNG%20PRAISEFMUS.webp';
+    // Caminho local para o logo da rádio (deve estar em /public/image/)
+    const STREAM_LOGO_URL = "/image/logo-praisefm.webp";
     const MAX_HISTORY = 5;
 
     // Função para detectar comerciais
@@ -114,7 +114,7 @@ export default function RadioPlayer() {
                 setStatus('LIVE • Now Playing');
                 console.log("Autoplay iniciado com sucesso!");
             } catch (err) {
-                console.warn('Autoplay bloqueado — interação do usuário necessária');
+                console.warn('Autoplay blocked — user interaction required');
                 setStatus('Interaja com a página para ouvir.');
             }
         };
@@ -571,6 +571,9 @@ export default function RadioPlayer() {
                     <img
                         src={coverUrl || STREAM_LOGO_URL}
                         alt="Current song album cover"
+                        onError={(e) => {
+                            e.target.src = STREAM_LOGO_URL; // Fallback para o logo
+                        }}
                     />
                 </div>
                 <div className="show-info">
@@ -621,6 +624,9 @@ export default function RadioPlayer() {
                                             <img
                                                 src={item.coverUrl || STREAM_LOGO_URL}
                                                 alt={`${item.artist} - ${item.song}`}
+                                                onError={(e) => {
+                                                    e.target.src = STREAM_LOGO_URL; // Fallback para o logo
+                                                }}
                                             />
                                         </div>
                                         <div className="history-text">
