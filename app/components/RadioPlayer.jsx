@@ -1,4 +1,3 @@
-// app/components/RadioPlayer.jsx
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -12,7 +11,6 @@ export default function RadioPlayer() {
     const [currentDate, setCurrentDate] = useState('—');
     const [currentTime, setCurrentTime] = useState('—');
     const [history, setHistory] = useState([]);
-    const [isFavorited, setIsFavorited] = useState(false);
     const [autoplayAttempted, setAutoplayAttempted] = useState(false);
 
     const playerRef = useRef(null);
@@ -22,23 +20,23 @@ export default function RadioPlayer() {
     const NOWPLAYING_API = "https://api.zeno.fm/mounts/metadata/subscribe/hvwifp8ezc6tv";
     const LASTFM_API_KEY = "7744c8f90ee053fc761e0e23bfa00b89";
 
-    // LOGO fallback
-    const STREAM_LOGO_URL =
-        "https://raw.githubusercontent.com/praisefmus/praisefmnext/main/image/LOGOPNG%20PRAISEFMUS.webp";
+    // LOGO LOCAL DO /public
+    const STREAM_LOGO_URL = "/logo-praisefm.webp";
 
     const MAX_HISTORY = 5;
 
     // Detectar comerciais
     const isCommercial = (title) => {
         const keywords = [
-            "commercial", "advertisement", "sponsor", "spot", "publicidade", "intervalo",
-            "break", "jingle", "comercial", "anuncio", "patrocinio"
+            "commercial","advertisement","sponsor","spot",
+            "publicidade","intervalo","break","jingle",
+            "comercial","anuncio","patrocinio"
         ];
-        const lower = title.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-        return keywords.some(k => lower.includes(k));
+        const text = title.toLowerCase();
+        return keywords.some(k => text.includes(k));
     };
 
-    // Buscar capa — versão corrigida
+    // Buscar capa
     const fetchCoverArt = async (artist, song) => {
         if (!artist || !song || isCommercial(song)) return STREAM_LOGO_URL;
 
@@ -58,7 +56,7 @@ export default function RadioPlayer() {
             }
 
             return STREAM_LOGO_URL;
-        } catch (e) {
+        } catch {
             return STREAM_LOGO_URL;
         }
     };
@@ -67,15 +65,9 @@ export default function RadioPlayer() {
     const addToHistory = (song, artist, coverUrl) => {
         setHistory(prev => {
             const key = `${artist} - ${song}`;
-            let newHist = [...prev];
-
-            const idx = newHist.findIndex(item => item.key === key);
-            if (idx > -1) newHist.splice(idx, 1);
-
+            const newHist = prev.filter(h => h.key !== key);
             newHist.unshift({ key, song, artist, coverUrl });
-
-            if (newHist.length > MAX_HISTORY) newHist.pop();
-            return newHist;
+            return newHist.slice(0, MAX_HISTORY);
         });
     };
 
@@ -87,9 +79,10 @@ export default function RadioPlayer() {
         player.src = STREAM_URL;
         player.volume = volume;
 
-        const attempt = async () => {
+        const tryPlay = async () => {
             if (autoplayAttempted) return;
             setAutoplayAttempted(true);
+
             try {
                 await player.play();
                 setPlaying(true);
@@ -99,15 +92,15 @@ export default function RadioPlayer() {
             }
         };
 
-        attempt();
+        tryPlay();
 
-        const again = () => { attempt(); };
-        document.addEventListener("click", again);
-        document.addEventListener("touchstart", again);
+        const listener = () => tryPlay();
+        document.addEventListener("click", listener);
+        document.addEventListener("touchstart", listener);
 
         return () => {
-            document.removeEventListener("click", again);
-            document.removeEventListener("touchstart", again);
+            document.removeEventListener("click", listener);
+            document.removeEventListener("touchstart", listener);
         };
     }, []);
 
@@ -116,7 +109,7 @@ export default function RadioPlayer() {
         if (playerRef.current) playerRef.current.volume = volume;
     }, [volume]);
 
-    // STREAM METADATA
+    // Metadados do stream
     useEffect(() => {
         const updateClock = () => {
             const now = new Date();
@@ -125,7 +118,7 @@ export default function RadioPlayer() {
         };
 
         updateClock();
-        const t = setInterval(updateClock, 1000);
+        const timer = setInterval(updateClock, 1000);
 
         const es = new EventSource(NOWPLAYING_API);
 
@@ -134,12 +127,11 @@ export default function RadioPlayer() {
                 const data = JSON.parse(event.data);
 
                 let title = (data.streamTitle || "").trim();
-
-                if (!title || title.length < 3) title = "Praise FM U.S. - Spot";
+                if (!title || title.length < 2) title = "Praise FM U.S. - Spot";
                 if (isCommercial(title)) title = "Praise FM U.S. - Spot";
 
                 const parts = title.split(" - ");
-                const artist = parts[0] || "Praise FM U.S.";
+                const artist = parts[0];
                 const song = parts[1] || "Spot";
 
                 setCurrentTitle(`${artist} - ${song}`);
@@ -149,7 +141,7 @@ export default function RadioPlayer() {
 
                 addToHistory(song, artist, cover);
 
-                setStatus(isCommercial(song) ? "📢 Commercial Break" : `LIVE • Now Playing`);
+                setStatus(isCommercial(song) ? "📢 Commercial Break" : "LIVE • Now Playing");
             } catch {
                 setCurrentTitle("Praise FM U.S. - Live");
                 setCoverUrl(STREAM_LOGO_URL);
@@ -160,14 +152,16 @@ export default function RadioPlayer() {
         es.onerror = () => setStatus("Reconnecting...");
 
         return () => {
-            clearInterval(t);
+            clearInterval(timer);
             es.close();
         };
     }, []);
 
+    // Play/pause
     const handlePlayPause = () => {
         const player = playerRef.current;
         if (!player) return;
+        
         if (playing) {
             player.pause();
             setPlaying(false);
@@ -181,208 +175,232 @@ export default function RadioPlayer() {
 
     return (
         <>
+        
+{/* ---------------- CSS GLOBAL + FADE ---------------- */}
 
-            {/* -------- CSS GLOBAL RESPONSIVO -------- */}
-            <style jsx global>{`
-                :root {
-                    --primary: #ff527c;
-                    --card: #ffffff;
-                    --bg: #f3f4f6;
-                    --text: #222;
-                    --muted: #555;
-                }
+<style jsx global>{`
+    :root {
+        --primary: #ff527c;
+        --bg: #f3f4f6;
+        --card: #ffffff;
+        --text: #222;
+        --muted: #555;
+    }
 
-                body {
-                    background: var(--bg);
-                    font-family: "Poppins", sans-serif;
-                    padding: 0;
-                    margin: 0;
-                }
+    body {
+        background: var(--bg);
+        margin: 0;
+        padding: 0;
+        font-family: "Poppins", sans-serif;
+    }
 
-                .player-container {
-                    max-width: 1100px;
-                    margin: auto;
-                    background: var(--card);
-                    padding: 24px;
-                    border-radius: 18px;
-                    box-shadow: 0 8px 28px rgba(0,0,0,0.08);
-                    display: flex;
-                    flex-direction: column;
-                    gap: 24px;
-                }
+    .player-box {
+        max-width: 1100px;
+        margin: 40px auto;
+        background: var(--card);
+        padding: 30px;
+        border-radius: 22px;
+        box-shadow: 0 10px 35px rgba(0,0,0,0.09);
+        display: flex;
+        flex-direction: column;
+        gap: 25px;
+    }
 
-                /* Layout Desktop */
-                @media (min-width: 900px) {
-                    .player-container {
-                        flex-direction: row;
-                        align-items: flex-start;
-                        padding: 40px;
-                        gap: 40px;
-                    }
-                }
+    @media (min-width: 900px) {
+        .player-box {
+            flex-direction: row;
+            padding: 50px;
+            gap: 40px;
+        }
+    }
 
-                .left-area {
-                    flex: 1;
-                    text-align: center;
-                }
+    .left-area {
+        flex: 1;
+        text-align: center;
+    }
 
-                @media (min-width: 900px) {
-                    .left-area { text-align: left; }
-                }
+    @media (min-width: 900px) {
+        .left-area { text-align: left; }
+    }
 
-                .cover {
-                    width: 230px;
-                    height: 230px;
-                    border-radius: 50%;
-                    overflow: hidden;
-                    margin: 0 auto 20px;
-                    background: #ddd;
-                }
+    .cover {
+        width: 260px;
+        height: 260px;
+        border-radius: 50%;
+        overflow: hidden;
+        margin: 0 auto 20px;
+        background: #ddd;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
 
-                @media (min-width: 900px) {
-                    .cover {
-                        width: 260px;
-                        height: 260px;
-                    }
-                }
+    /* ✨ Fade suave da capa ✨ */
+    .cover img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover !important;
+        display: block !important;
+        opacity: 0;
+        transition: opacity 0.7s ease-in-out;
+    }
 
-                .cover img {
-                    width: 100%;
-                    height: 100%;
-                    object-fit: cover;
-                }
+    .cover img.loaded {
+        opacity: 1;
+    }
 
-                .now-title {
-                    font-size: 1.2rem;
-                    font-weight: 700;
-                    color: var(--text);
-                }
+    .title {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: var(--text);
+    }
 
-                .clock {
-                    margin-top: 6px;
-                    color: var(--muted);
-                }
+    .clock {
+        margin-top: 6px;
+        color: var(--muted);
+    }
 
-                .right-area {
-                    flex: 1;
-                    display: flex;
-                    flex-direction: column;
-                    gap: 24px;
-                }
+    .right-area {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
 
-                .play-btn {
-                    padding: 14px;
-                    background: var(--primary);
-                    color: #fff;
-                    font-size: 1.2rem;
-                    border: none;
-                    border-radius: 50px;
-                    cursor: pointer;
-                    font-weight: 700;
-                }
+    .play-btn {
+        background: var(--primary);
+        color: #fff;
+        padding: 15px;
+        border: none;
+        border-radius: 50px;
+        cursor: pointer;
+        font-size: 1.2rem;
+        font-weight: 700;
+    }
 
-                .vol-box {
-                    display: flex;
-                    gap: 12px;
-                    align-items: center;
-                }
+    .volume-box {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
 
-                input[type="range"] {
-                    width: 100%;
-                }
+    .history-area {
+        background: #fafafa;
+        padding: 16px;
+        border-radius: 12px;
+    }
 
-                /* Histórico */
-                .history-box {
-                    background: #fafafa;
-                    padding: 16px;
-                    border-radius: 12px;
-                }
+    .hist-item {
+        display: flex;
+        gap: 12px;
+        padding: 10px 0;
+        border-bottom: 1px solid #eee;
+    }
 
-                .hist-item {
-                    display: flex;
-                    align-items: center;
-                    gap: 12px;
-                    padding: 8px 0;
-                    border-bottom: 1px solid #eee;
-                }
+    .hist-item:last-child {
+        border-bottom: none;
+    }
 
-                .hist-item:last-child {
-                    border-bottom: none;
-                }
+    .hist-img {
+        width: 45px;
+        height: 45px;
+        border-radius: 8px;
+        overflow: hidden;
+        background: #ddd;
+    }
 
-                .hist-img {
-                    width: 45px;
-                    height: 45px;
-                    border-radius: 6px;
-                    overflow: hidden;
-                    background: #ddd;
-                }
+    /* Fade também no histórico */
+    .hist-img img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        opacity: 0;
+        transition: opacity 0.7s ease-in-out;
+    }
 
-                .status-line {
-                    padding-top: 10px;
-                    font-size: 0.9rem;
-                    color: var(--muted);
-                }
-            `}</style>
+    .hist-img img.loaded {
+        opacity: 1;
+    }
 
-            {/* -------- PLAYER -------- */}
-            <div className="player-container">
+    .status {
+        font-size: .9rem;
+        color: var(--muted);
+        padding-top: 10px;
+    }
+`}</style>
 
-                {/* LEFT */}
-                <div className="left-area">
-                    <div className="cover">
-                        <img src={coverUrl || STREAM_LOGO_URL} alt="Album Cover" />
+
+{/* ---------------- PLAYER UI ---------------- */}
+
+<div className="player-box">
+
+    {/* LEFT SIDE */}
+    <div className="left-area">
+        <div className="cover">
+            <img
+                src={coverUrl || STREAM_LOGO_URL}
+                onError={(e) => { e.target.src = STREAM_LOGO_URL; }}
+                onLoad={(e) => e.target.classList.add("loaded")}
+                alt="Album Cover"
+            />
+        </div>
+
+        <div className="title">{currentTitle}</div>
+        <div className="clock">{currentDate} • {currentTime}</div>
+    </div>
+
+    {/* RIGHT SIDE */}
+    <div className="right-area">
+
+        <button className="play-btn" onClick={handlePlayPause}>
+            {playing ? "⏸ Pause" : "▶ Play"}
+        </button>
+
+        <div className="volume-box">
+            <span>🔊</span>
+            <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                value={volume}
+                onChange={(e) => setVolume(parseFloat(e.target.value))}
+            />
+        </div>
+
+        <div className="history-area">
+            <strong>Recently Played</strong>
+
+            {history.length === 0 ? (
+                <div style={{ padding: "12px", color: "#777" }}>No songs yet…</div>
+            ) : (
+                history.map((item, i) => (
+                    <div key={i} className="hist-item">
+                        <div className="hist-img">
+                            <img
+                                src={item.coverUrl || STREAM_LOGO_URL}
+                                onError={(e) => (e.target.src = STREAM_LOGO_URL)}
+                                onLoad={(e) => e.target.classList.add("loaded")}
+                                alt="cover"
+                            />
+                        </div>
+
+                        <div>
+                            <div style={{ fontWeight: 600 }}>{item.song}</div>
+                            <div style={{ fontSize: "0.8rem", color: "#666" }}>{item.artist}</div>
+                        </div>
                     </div>
+                ))
+            )}
+        </div>
 
-                    <div className="now-title">{currentTitle}</div>
-                    <div className="clock">{currentDate} • {currentTime}</div>
-                </div>
+        <div className="status">{status}</div>
 
-                {/* RIGHT */}
-                <div className="right-area">
+    </div>
 
-                    <button className="play-btn" onClick={handlePlayPause}>
-                        {playing ? "⏸ Pause" : "▶ Play"}
-                    </button>
+    <audio ref={playerRef} preload="auto" />
+</div>
 
-                    <div className="vol-box">
-                        <span>🔊</span>
-                        <input
-                            type="range"
-                            min="0"
-                            max="1"
-                            step="0.01"
-                            value={volume}
-                            onChange={(e) => setVolume(parseFloat(e.target.value))}
-                        />
-                    </div>
-
-                    <div className="history-box">
-                        <strong>Recently Played</strong>
-
-                        {history.length === 0 ? (
-                            <div style={{ padding: "12px", color: "#777" }}>No songs yet…</div>
-                        ) : (
-                            history.map((item, i) => (
-                                <div key={i} className="hist-item">
-                                    <div className="hist-img">
-                                        <img src={item.coverUrl || STREAM_LOGO_URL} alt="cover" />
-                                    </div>
-
-                                    <div>
-                                        <div style={{ fontWeight: 600 }}>{item.song}</div>
-                                        <div style={{ fontSize: "0.8rem", color: "#666" }}>{item.artist}</div>
-                                    </div>
-                                </div>
-                            ))
-                        )}
-                    </div>
-
-                    <div className="status-line">{status}</div>
-                </div>
-
-                <audio ref={playerRef} preload="auto" />
-            </div>
-        </>
+</>
     );
 }
