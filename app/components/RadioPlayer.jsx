@@ -27,9 +27,7 @@ export default function RadioPlayer() {
         return ["spot", "commercial", "publicidade", "advert", "break", "jingle", "intervalo"].some(w => t.includes(w));
     };
 
-    // -------------------------------
-    // FILTRO FORTE PARA CAPAS
-    // -------------------------------
+    // ---- filtro forte de capas ----
     const isBadCover = (artist, song, imageUrl) => {
         if (!imageUrl) return true;
 
@@ -44,11 +42,11 @@ export default function RadioPlayer() {
             "tv",
         ];
 
-        const urlLower = imageUrl.toLowerCase();
+        const low = imageUrl.toLowerCase();
 
-        if (badWords.some(w => urlLower.includes(w))) return true;
+        if (badWords.some(w => low.includes(w))) return true;
 
-        if (imageUrl.includes("600x600") || imageUrl.includes("500")) return false;
+        if (low.includes("600x600") || low.includes("500")) return false;
 
         return true;
     };
@@ -60,12 +58,9 @@ export default function RadioPlayer() {
             const data = await res.json();
 
             if (data.results?.length > 0) {
-                let art = data.results[0].artworkUrl100;
-                const full = art.replace("100x100bb", "600x600bb");
+                let art = data.results[0].artworkUrl100.replace("100x100bb", "600x600bb");
 
-                if (!isBadCover(artist, song, full)) {
-                    return full;
-                }
+                if (!isBadCover(artist, song, art)) return art;
             }
         } catch (_) { }
         return null;
@@ -175,6 +170,13 @@ export default function RadioPlayer() {
         setPlaying(!playing);
     };
 
+    // ---- volume ----
+    const handleVolumeChange = (e) => {
+        const v = parseFloat(e.target.value);
+        setVolume(v);
+        if (playerRef.current) playerRef.current.volume = v;
+    };
+
     return (
         <div className="wrapper">
 
@@ -207,6 +209,37 @@ export default function RadioPlayer() {
                         padding: 22px;
                         gap: 25px;
                     }
+                }
+
+                /* Modern Slider */
+                .volume-slider {
+                    width: 100%;
+                    margin: 10px 0 25px 0;
+                    -webkit-appearance: none;
+                    appearance: none;
+                    height: 4px;
+                    background: #ddd;
+                    border-radius: 50px;
+                    outline: none;
+                }
+
+                .volume-slider::-webkit-slider-thumb {
+                    -webkit-appearance: none;
+                    width: 18px;
+                    height: 18px;
+                    background: #ff527c;
+                    border-radius: 50%;
+                    cursor: pointer;
+                    box-shadow: 0 0 10px rgba(255,82,124,0.6);
+                }
+
+                .volume-slider::-moz-range-thumb {
+                    width: 18px;
+                    height: 18px;
+                    background: #ff527c;
+                    border-radius: 50%;
+                    cursor: pointer;
+                    box-shadow: 0 0 10px rgba(255,82,124,0.6);
                 }
 
                 .content-left {
@@ -243,36 +276,39 @@ export default function RadioPlayer() {
                     }
                 }
 
-                .show-image img {
-                    width: 100%;
-                    height: 100%;
-                    object-fit: cover;
-                }
-
                 .live-indicator {
                     margin-top: 15px;
                     color: #ff527c;
                     font-weight: 600;
-                    font-size: .85rem;
                 }
 
                 .show-title {
                     margin-top: 5px;
-                    font-size: 1.1rem;
                     font-weight: 600;
                 }
 
                 .show-date {
                     color: #777;
                     font-size: .85rem;
-                    margin-top: 3px;
                 }
 
                 .content-right {
                     flex: 1;
                 }
 
-                /* Histórico OPÇÃO A — organizado à esquerda no celular */
+                .play-button {
+                    width: 100%;
+                    padding: 15px;
+                    border-radius: 50px;
+                    border: none;
+                    background: #ff527c;
+                    color: #fff;
+                    cursor: pointer;
+                    font-size: 1.2rem;
+                    font-weight: bold;
+                    margin-bottom: 10px;
+                }
+
                 .history-section {
                     margin-top: 20px;
                 }
@@ -312,32 +348,6 @@ export default function RadioPlayer() {
                     .history-item {
                         justify-content: center;
                     }
-                    .history-text {
-                        text-align: left;
-                    }
-                }
-
-                .history-title-item {
-                    font-weight: 600;
-                    font-size: 0.95rem;
-                }
-
-                .history-artist {
-                    font-size: .8rem;
-                    color: #777;
-                }
-
-                .play-button {
-                    width: 100%;
-                    padding: 15px;
-                    border-radius: 50px;
-                    border: none;
-                    background: #ff527c;
-                    color: #fff;
-                    cursor: pointer;
-                    font-size: 1.2rem;
-                    font-weight: bold;
-                    margin-bottom: 20px;
                 }
 
                 .status {
@@ -347,6 +357,7 @@ export default function RadioPlayer() {
                 }
             `}</style>
 
+
             <div className="container">
 
                 <div className="content-left">
@@ -354,10 +365,7 @@ export default function RadioPlayer() {
                     <div className="station-desc">Praise & Worship</div>
 
                     <div className="show-image">
-                        <img
-                            src={coverUrl || STREAM_LOGO_URL}
-                            onError={(e) => (e.target.src = STREAM_LOGO_URL)}
-                        />
+                        <img src={coverUrl || STREAM_LOGO_URL} />
                     </div>
 
                     <div className="live-indicator">LIVE • {currentTime}</div>
@@ -371,15 +379,23 @@ export default function RadioPlayer() {
                         {playing ? "⏸ Pause" : "▶ Play"}
                     </button>
 
+                    {/* SLIDER DE VOLUME MODERNO */}
+                    <input
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.01"
+                        value={volume}
+                        onChange={handleVolumeChange}
+                        className="volume-slider"
+                    />
+
                     <div className="history-section">
                         <div className="history-title">Recently Played</div>
 
                         {history.map((item, i) => (
                             <div key={i} className="history-item">
-                                <img
-                                    src={item.coverUrl || STREAM_LOGO_URL}
-                                    className="history-img"
-                                />
+                                <img src={item.coverUrl || STREAM_LOGO_URL} className="history-img" />
 
                                 <div className="history-text">
                                     <div className="history-title-item">{item.song}</div>
