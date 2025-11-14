@@ -6,7 +6,7 @@ import { useState, useEffect, useRef } from 'react';
 export default function RadioPlayer() {
     const [playing, setPlaying] = useState(false);
     const [volume, setVolume] = useState(0.7);
-    const [status, setStatus] = useState('Connecting to stream... • Real-time updates');
+    const [status, setStatus] = useState('Connecting...');
     const [coverUrl, setCoverUrl] = useState('');
     const [currentTitle, setCurrentTitle] = useState('Loading...');
     const [currentDate, setCurrentDate] = useState('—');
@@ -16,644 +16,373 @@ export default function RadioPlayer() {
     const [autoplayAttempted, setAutoplayAttempted] = useState(false);
 
     const playerRef = useRef(null);
-    const showImageRef = useRef(null);
 
-    // Configurações
-    const STREAM_URL = 'https://stream.zeno.fm/hvwifp8ezc6tv';
-    const NOWPLAYING_API = 'https://api.zeno.fm/mounts/metadata/subscribe/hvwifp8ezc6tv';
-    const LASTFM_API_KEY = '7744c8f90ee053fc761e0e23bfa00b89';
-    // Link correto para o logo da rádio no seu repositório
-    const STREAM_LOGO_URL = 'https://raw.githubusercontent.com/praisefmus/praisefmnext/main/image/LOGOPNG%20PRAISEFMUS.webp';
+    // STREAM + API
+    const STREAM_URL = "https://stream.zeno.fm/hvwifp8ezc6tv";
+    const NOWPLAYING_API = "https://api.zeno.fm/mounts/metadata/subscribe/hvwifp8ezc6tv";
+    const LASTFM_API_KEY = "7744c8f90ee053fc761e0e23bfa00b89";
+
+    // LOGO fallback
+    const STREAM_LOGO_URL =
+        "https://raw.githubusercontent.com/praisefmus/praisefmnext/main/image/LOGOPNG%20PRAISEFMUS.webp";
+
     const MAX_HISTORY = 5;
 
-    // Função para detectar comerciais
+    // Detectar comerciais
     const isCommercial = (title) => {
         const keywords = [
-            'commercial', 'advertisement', 'sponsor', 'spot', 'publicidade', 'intervalo', 'break', 'jingle', 'comercial', 'anúncio', 'patrocínio'
+            "commercial", "advertisement", "sponsor", "spot", "publicidade", "intervalo",
+            "break", "jingle", "comercial", "anuncio", "patrocinio"
         ];
-        const lower = title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        const lower = title.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
         return keywords.some(k => lower.includes(k));
     };
 
-    // Função para buscar capa do álbum
+    // Buscar capa — versão corrigida
     const fetchCoverArt = async (artist, song) => {
-        if (!artist || !song || isCommercial(song) || artist === 'Praise FM U.S.' || song === 'Live') {
-            return STREAM_LOGO_URL;
-        }
+        if (!artist || !song || isCommercial(song)) return STREAM_LOGO_URL;
+
         try {
             const response = await fetch(
                 `https://ws.audioscrobbler.com/2.0/?method=track.getInfo&api_key=${LASTFM_API_KEY}&artist=${encodeURIComponent(artist)}&track=${encodeURIComponent(song)}&format=json`
             );
+
             const data = await response.json();
+
             if (data.track?.album?.image) {
                 const images = data.track.album.image;
-                const cover = images.find(img => img.size === 'extralarge') || images[images.length - 1];
-                const url = cover['#text'] || '';
-                // Verifica se a URL é válida e não é um placeholder
-                if (url && !url.includes('noimage') && !url.includes('last.fm')) {
-                    return url;
-                }
+                const cover = images.find(img => img.size === "extralarge") || images[images.length - 1];
+
+                const url = cover['#text']?.trim() || "";
+                if (url !== "") return url;
             }
+
             return STREAM_LOGO_URL;
-        } catch (err) {
-            console.warn('Failed to fetch cover:', err);
+        } catch (e) {
             return STREAM_LOGO_URL;
         }
     };
 
-    // Função para adicionar ao histórico
+    // Histórico
     const addToHistory = (song, artist, coverUrl) => {
         setHistory(prev => {
             const key = `${artist} - ${song}`;
-            let newHistory = [...prev];
-            const existingIndex = newHistory.findIndex(item => item.key === key);
-            if (existingIndex > -1) {
-                newHistory.splice(existingIndex, 1);
-            }
-            newHistory.unshift({ key, song, artist, coverUrl });
-            if (newHistory.length > MAX_HISTORY) {
-                newHistory.pop();
-            }
-            return newHistory;
+            let newHist = [...prev];
+
+            const idx = newHist.findIndex(item => item.key === key);
+            if (idx > -1) newHist.splice(idx, 1);
+
+            newHist.unshift({ key, song, artist, coverUrl });
+
+            if (newHist.length > MAX_HISTORY) newHist.pop();
+            return newHist;
         });
     };
 
-    // Função para favoritar/desfavoritar
-    const toggleFavorite = (key) => {
-        let favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
-        const index = favorites.indexOf(key);
-        if (index === -1) {
-            favorites.push(key);
-        } else {
-            favorites.splice(index, 1);
-        }
-        localStorage.setItem('favorites', JSON.stringify(favorites));
-
-        if (key === `${currentTitle}`) {
-            setIsFavorited(index === -1);
-        }
-    };
-
-    // --- Efeito para tentar autoplay automaticamente ---
+    // Autoplay
     useEffect(() => {
         const player = playerRef.current;
         if (!player) return;
 
-        // Configurações iniciais
         player.src = STREAM_URL;
         player.volume = volume;
 
-        // Tenta autoplay assim que o componente for montado
-        const attemptAutoplay = async () => {
+        const attempt = async () => {
             if (autoplayAttempted) return;
             setAutoplayAttempted(true);
-
             try {
                 await player.play();
                 setPlaying(true);
-                setStatus('LIVE • Now Playing');
-                console.log("Autoplay iniciado com sucesso!");
-            } catch (err) {
-                console.warn('Autoplay bloqueado — interação do usuário necessária');
-                setStatus('Interaja com a página para ouvir.');
+                setStatus("LIVE • Now Playing");
+            } catch {
+                setStatus("Click to start the radio");
             }
         };
 
-        attemptAutoplay();
+        attempt();
 
-        // Evento para tentar autoplay novamente quando o usuário interagir
-        const handleInteraction = () => {
-            attemptAutoplay();
-            // Remover o evento após a primeira interação
-            document.removeEventListener('click', handleInteraction);
-            document.removeEventListener('touchstart', handleInteraction);
-            document.removeEventListener('keydown', handleInteraction);
-        };
+        const again = () => { attempt(); };
+        document.addEventListener("click", again);
+        document.addEventListener("touchstart", again);
 
-        document.addEventListener('click', handleInteraction);
-        document.addEventListener('touchstart', handleInteraction);
-        document.addEventListener('keydown', handleInteraction);
-
-        // Cleanup
         return () => {
-            document.removeEventListener('click', handleInteraction);
-            document.removeEventListener('touchstart', handleInteraction);
-            document.removeEventListener('keydown', handleInteraction);
+            document.removeEventListener("click", again);
+            document.removeEventListener("touchstart", again);
         };
     }, []);
 
-    // --- Efeito para atualizar volume do player ---
+    // Volume
     useEffect(() => {
-        if (playerRef.current) {
-            playerRef.current.volume = volume;
-        }
+        if (playerRef.current) playerRef.current.volume = volume;
     }, [volume]);
 
-    // --- Efeito para SSE (metadados da rádio) ---
+    // STREAM METADATA
     useEffect(() => {
-        const player = playerRef.current;
-        if (!player) return;
-
-        const updateTime = () => {
+        const updateClock = () => {
             const now = new Date();
-            const optionsTime = {
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: true,
-                timeZone: 'America/Chicago'
-            };
-            const optionsDate = {
-                day: '2-digit',
-                month: 'short',
-                year: 'numeric',
-                timeZone: 'America/Chicago'
-            };
-            setCurrentTime(now.toLocaleTimeString('en-US', optionsTime));
-            setCurrentDate(now.toLocaleDateString('en-US', optionsDate));
+            setCurrentTime(now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true }));
+            setCurrentDate(now.toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric" }));
         };
-        updateTime();
-        const timeInterval = setInterval(updateTime, 1000);
 
-        const eventSource = new EventSource(NOWPLAYING_API);
-        eventSource.onmessage = async (event) => {
+        updateClock();
+        const t = setInterval(updateClock, 1000);
+
+        const es = new EventSource(NOWPLAYING_API);
+
+        es.onmessage = async (event) => {
             try {
                 const data = JSON.parse(event.data);
-                let streamTitle = (data.streamTitle || '').trim() || 'Unknown Song';
-                streamTitle = streamTitle.replace(/[^\p{L}\p{N}\s\-–—.,:;!?'"()&@#$%*+=/\\|<>[\]{}~`^_]/gu, ' ').replace(/\s+/g, ' ').trim();
-                if (!streamTitle || streamTitle.length < 3) {
-                    streamTitle = 'Praise FM U.S. - Spot';
-                }
-                const isSpot = isCommercial(streamTitle);
-                if (isSpot) {
-                    streamTitle = 'Praise FM U.S. - Spot';
-                }
-                const parts = streamTitle.split(' - ').map(p => p.trim()).filter(Boolean);
-                const artist = parts[0] || 'Praise FM U.S.';
-                const song = parts.length > 1 ? parts.slice(1).join(' - ') : streamTitle;
+
+                let title = (data.streamTitle || "").trim();
+
+                if (!title || title.length < 3) title = "Praise FM U.S. - Spot";
+                if (isCommercial(title)) title = "Praise FM U.S. - Spot";
+
+                const parts = title.split(" - ");
+                const artist = parts[0] || "Praise FM U.S.";
+                const song = parts[1] || "Spot";
 
                 setCurrentTitle(`${artist} - ${song}`);
 
-                const newCover = await fetchCoverArt(artist, song);
-                setCoverUrl(newCover);
+                const cover = await fetchCoverArt(artist, song);
+                setCoverUrl(cover);
 
-                const key = `${artist} - ${song}`;
-                const favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
-                setIsFavorited(favorites.includes(key));
+                addToHistory(song, artist, cover);
 
-                addToHistory(song, artist, newCover);
-
-                setStatus(isSpot ? '📢 Commercial Break' : `LIVE • Now Playing: ${artist} - ${song}`);
-            } catch (err) {
-                console.warn('Error parsing metadata', err);
-                setCurrentTitle('Praise FM U.S. - Live');
+                setStatus(isCommercial(song) ? "📢 Commercial Break" : `LIVE • Now Playing`);
+            } catch {
+                setCurrentTitle("Praise FM U.S. - Live");
                 setCoverUrl(STREAM_LOGO_URL);
-                setStatus('LIVE • Live');
+                setStatus("LIVE");
             }
         };
 
-        eventSource.onerror = () => {
-            console.warn('EventSource failed, trying again in 15s...');
-            setStatus('Connection failed. Retrying...');
-        };
+        es.onerror = () => setStatus("Reconnecting...");
 
         return () => {
-            clearInterval(timeInterval);
-            eventSource.close();
+            clearInterval(t);
+            es.close();
         };
     }, []);
 
-    // --- Handlers ---
     const handlePlayPause = () => {
         const player = playerRef.current;
         if (!player) return;
-
         if (playing) {
             player.pause();
-            setStatus('Paused');
+            setPlaying(false);
+            setStatus("Paused");
         } else {
-            player.play().then(() => {
-                setStatus('LIVE • Now Playing');
-            }).catch(err => {
-                setStatus('Failed to play — try again.');
-                console.error('Play error:', err);
-            });
-        }
-        setPlaying(!playing);
-    };
-
-    const handleVolumeChange = (e) => {
-        const newVolume = parseFloat(e.target.value);
-        setVolume(newVolume);
-        setStatus(`Volume: ${Math.round(newVolume * 100)}%`);
-    };
-
-    const handleFavoriteClick = () => {
-        if (currentTitle) {
-            toggleFavorite(currentTitle);
+            player.play();
+            setPlaying(true);
+            setStatus("LIVE • Now Playing");
         }
     };
 
     return (
-        <div className="container">
+        <>
+
+            {/* -------- CSS GLOBAL RESPONSIVO -------- */}
             <style jsx global>{`
                 :root {
-                    --primary-color: #ff527c;
-                    --secondary-color: #ffffff;
-                    --background-color: #f0f4f8;
-                    --text-color: #333;
-                    --light-text-color: #666;
-                    --border-color: #eee;
-                }
-                * {
-                    margin: 0;
-                    padding: 0;
-                    box-sizing: border-box;
-                    font-family: 'Poppins', sans-serif;
-                }
-                body {
-                    background-color: var(--background-color);
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
-                    min-height: 100vh;
-                    padding: 20px;
-                    overflow: hidden;
+                    --primary: #ff527c;
+                    --card: #ffffff;
+                    --bg: #f3f4f6;
+                    --text: #222;
+                    --muted: #555;
                 }
 
-                /* Layout responsivo */
-                .container {
-                    background-color: var(--secondary-color);
-                    border-radius: 16px;
-                    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.12);
-                    width: 100%;
-                    max-width: 95vw;
-                    max-height: 95vh;
-                    padding: 32px;
-                    text-align: center;
+                body {
+                    background: var(--bg);
+                    font-family: "Poppins", sans-serif;
+                    padding: 0;
+                    margin: 0;
+                }
+
+                .player-container {
+                    max-width: 1100px;
+                    margin: auto;
+                    background: var(--card);
+                    padding: 24px;
+                    border-radius: 18px;
+                    box-shadow: 0 8px 28px rgba(0,0,0,0.08);
                     display: flex;
                     flex-direction: column;
-                    min-height: 600px;
-                    min-width: 400px;
+                    gap: 24px;
                 }
 
-                /* Layout Horizontal para telas largas */
-                @media (min-width: 1024px) {
-                    .container {
+                /* Layout Desktop */
+                @media (min-width: 900px) {
+                    .player-container {
                         flex-direction: row;
-                        align-items: center;
-                        gap: 30px;
-                        text-align: left;
+                        align-items: flex-start;
                         padding: 40px;
+                        gap: 40px;
                     }
                 }
 
-                .header {
-                    display: flex;
-                    justify-content: flex-end;
-                    align-items: center;
-                    margin-bottom: 20px;
-                    height: 24px;
-                }
-                .favorite-btn {
-                    background: none;
-                    border: none;
-                    color: var(--light-text-color);
-                    font-size: 24px;
-                    cursor: pointer;
-                    padding: 0 5px;
-                    transition: color 0.2s;
-                }
-                .favorite-btn.favorited {
-                    color: #ffb300;
-                }
-
-                /* Lado Esquerdo: Imagem e Info */
-                .content-left {
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
+                .left-area {
                     flex: 1;
+                    text-align: center;
                 }
 
-                .station-title {
-                    font-size: 1.5rem;
-                    font-weight: 700;
-                    color: var(--primary-color);
-                    margin-bottom: 5px;
+                @media (min-width: 900px) {
+                    .left-area { text-align: left; }
                 }
-                .station-desc {
-                    font-size: 0.9rem;
-                    color: var(--light-text-color);
-                    margin-bottom: 15px;
-                }
-                .show-image {
-                    width: 200px;
-                    height: 200px;
+
+                .cover {
+                    width: 230px;
+                    height: 230px;
                     border-radius: 50%;
                     overflow: hidden;
-                    margin-bottom: 25px;
-                    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
-                    transition: transform 0.3s ease-out, border 0.3s ease-out;
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
-                    background-color: #f0f0f0;
+                    margin: 0 auto 20px;
+                    background: #ddd;
                 }
-                .show-image img {
+
+                @media (min-width: 900px) {
+                    .cover {
+                        width: 260px;
+                        height: 260px;
+                    }
+                }
+
+                .cover img {
                     width: 100%;
                     height: 100%;
                     object-fit: cover;
-                    display: block;
-                }
-                .show-image.favorited-cover {
-                    border: 3px solid #ffb300;
-                    transform: scale(1.02);
-                }
-                .show-info {
-                    margin-bottom: 25px;
-                    width: 100%;
-                }
-                .live-indicator {
-                    font-size: 0.75rem;
-                    font-weight: 600;
-                    color: var(--primary-color);
-                    text-transform: uppercase;
-                    margin-bottom: 5px;
-                }
-                .show-title {
-                    font-size: 1.1rem;
-                    font-weight: 600;
-                    color: var(--text-color);
-                    margin-bottom: 2px;
-                    word-wrap: break-word;
-                    white-space: normal;
-                }
-                .show-date {
-                    font-size: 0.8rem;
-                    color: var(--light-text-color);
                 }
 
-                /* Lado Direito: Controles e Histórico */
-                .content-right {
-                    display: flex;
-                    flex-direction: column;
-                    align-items: flex-start;
-                    flex: 1;
-                    gap: 20px;
-                }
-
-                .play-button {
-                    background-color: var(--primary-color);
-                    color: var(--secondary-color);
-                    border: none;
-                    border-radius: 50px;
-                    padding: 12px 30px;
+                .now-title {
                     font-size: 1.2rem;
                     font-weight: 700;
-                    cursor: pointer;
-                    width: 100%;
-                    max-width: 300px;
-                    transition: background-color 0.2s, box-shadow 0.2s;
-                    box-shadow: 0 4px 10px rgba(255, 82, 124, 0.4);
+                    color: var(--text);
                 }
-                .play-button:hover {
-                    background-color: #e5476d;
-                    box-shadow: 0 6px 15px rgba(255, 82, 124, 0.6);
+
+                .clock {
+                    margin-top: 6px;
+                    color: var(--muted);
                 }
-                .volume-control {
+
+                .right-area {
+                    flex: 1;
                     display: flex;
-                    align-items: center;
-                    width: 100%;
-                    max-width: 300px;
-                    padding: 0 10px;
+                    flex-direction: column;
+                    gap: 24px;
                 }
-                .volume-control i {
-                    color: var(--light-text-color);
-                    margin-right: 10px;
-                    font-size: 1.1rem;
-                }
-                .volume-slider {
-                    flex-grow: 1;
-                    -webkit-appearance: none;
-                    appearance: none;
-                    height: 4px;
-                    background: var(--border-color);
-                    border-radius: 5px;
-                    outline: none;
-                }
-                .volume-slider::-webkit-slider-thumb {
-                    -webkit-appearance: none;
-                    appearance: none;
-                    width: 14px;
-                    height: 14px;
-                    background: var(--primary-color);
-                    border-radius: 50%;
-                    cursor: pointer;
-                }
-                .volume-slider::-moz-range-thumb {
-                    width: 14px;
-                    height: 14px;
-                    background: var(--primary-color);
+
+                .play-btn {
+                    padding: 14px;
+                    background: var(--primary);
+                    color: #fff;
+                    font-size: 1.2rem;
                     border: none;
-                    border-radius: 50%;
+                    border-radius: 50px;
                     cursor: pointer;
+                    font-weight: 700;
                 }
-                .history-section {
+
+                .vol-box {
+                    display: flex;
+                    gap: 12px;
+                    align-items: center;
+                }
+
+                input[type="range"] {
                     width: 100%;
-                    max-width: 300px;
                 }
-                .history-title {
-                    font-size: 1rem;
-                    font-weight: 600;
-                    color: var(--text-color);
-                    margin-bottom: 10px;
-                    border-bottom: 1px solid var(--border-color);
-                    padding-bottom: 5px;
+
+                /* Histórico */
+                .history-box {
+                    background: #fafafa;
+                    padding: 16px;
+                    border-radius: 12px;
                 }
-                .history-list {
-                    max-height: 200px;
-                    overflow-y: auto;
-                }
-                .history-item {
+
+                .hist-item {
                     display: flex;
                     align-items: center;
+                    gap: 12px;
                     padding: 8px 0;
                     border-bottom: 1px solid #eee;
                 }
-                .history-item:last-child {
+
+                .hist-item:last-child {
                     border-bottom: none;
                 }
-                .history-img {
-                    width: 40px;
-                    height: 40px;
-                    border-radius: 4px;
+
+                .hist-img {
+                    width: 45px;
+                    height: 45px;
+                    border-radius: 6px;
                     overflow: hidden;
-                    margin-right: 10px;
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
-                    background-color: var(--background-color);
+                    background: #ddd;
                 }
-                .history-img img {
-                    width: 100%;
-                    height: 100%;
-                    object-fit: cover;
-                }
-                .history-text {
-                    flex-grow: 1;
-                    min-width: 0;
-                }
-                .history-title-item {
+
+                .status-line {
+                    padding-top: 10px;
                     font-size: 0.9rem;
-                    font-weight: 500;
-                    color: var(--text-color);
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                    white-space: nowrap;
-                    display: flex;
-                    justify-content: space-between;
-                }
-                .history-artist {
-                    font-size: 0.8rem;
-                    color: var(--light-text-color);
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                    white-space: nowrap;
-                }
-                .favorite-history {
-                    cursor: pointer;
-                    font-size: 1.1rem;
-                    margin-left: 5px;
-                    color: var(--light-text-color);
-                    transition: color 0.2s;
-                }
-                .favorite-history[data-key*="★"] {
-                    color: #ffb300;
-                }
-                .status {
-                    font-size: 0.8rem;
-                    color: var(--light-text-color);
-                    padding-top: 20px;
-                    border-top: 1px solid var(--border-color);
-                    margin-top: 20px;
-                    width: 100%;
-                    max-width: 300px;
-                }
-                .sr-only {
-                    position: absolute;
-                    width: 1px;
-                    height: 1px;
-                    padding: 0;
-                    margin: -1px;
-                    overflow: hidden;
-                    clip: rect(0,0,0,0);
-                    border: 0;
+                    color: var(--muted);
                 }
             `}</style>
 
-            <div className="content-left">
-                <div className="header">
-                    <button
-                        className={`favorite-btn ${isFavorited ? 'favorited' : ''}`}
-                        onClick={handleFavoriteClick}
-                        title="Favorite this song"
-                        aria-label="Favorite this song"
-                    >
-                        {isFavorited ? '★' : '☆'}
-                    </button>
-                </div>
-                <div className="station-title">Praise FM U.S.</div>
-                <div className="station-desc">Praise & Worship</div>
-                <div
-                    ref={showImageRef}
-                    className={`show-image ${isFavorited ? 'favorited-cover' : ''}`}
-                >
-                    <img
-                        src={coverUrl || STREAM_LOGO_URL}
-                        alt="Current song album cover"
-                    />
-                </div>
-                <div className="show-info">
-                    <div className="live-indicator">LIVE • <span id="currentTime">{currentTime}</span></div>
-                    <div className="show-title">
-                        <span id="currentTitle">{currentTitle}</span>
+            {/* -------- PLAYER -------- */}
+            <div className="player-container">
+
+                {/* LEFT */}
+                <div className="left-area">
+                    <div className="cover">
+                        <img src={coverUrl || STREAM_LOGO_URL} alt="Album Cover" />
                     </div>
-                    <div className="show-date" id="currentDate">{currentDate}</div>
+
+                    <div className="now-title">{currentTitle}</div>
+                    <div className="clock">{currentDate} • {currentTime}</div>
                 </div>
-            </div>
-            <div className="content-right">
-                <button
-                    className="play-button"
-                    id="playBtn"
-                    onClick={handlePlayPause}
-                    aria-label={playing ? 'Pause radio' : 'Play radio'}
-                >
-                    {playing ? '⏸ Pause' : '▶ Play'}
-                </button>
-                <div className="volume-control">
-                    <label htmlFor="volumeSlider" className="sr-only">Adjust volume</label>
-                    <i className="fas fa-volume-up" aria-hidden="true"></i>
-                    <input
-                        type="range"
-                        className="volume-slider"
-                        id="volumeSlider"
-                        min="0"
-                        max="1"
-                        step="0.01"
-                        value={volume}
-                        onChange={handleVolumeChange}
-                        aria-valuemin="0"
-                        aria-valuenow={volume}
-                        role="slider"
-                    />
-                </div>
-                <div className="history-section">
-                    <div className="history-title">Recently Played</div>
-                    <div className="history-list" id="historyList">
+
+                {/* RIGHT */}
+                <div className="right-area">
+
+                    <button className="play-btn" onClick={handlePlayPause}>
+                        {playing ? "⏸ Pause" : "▶ Play"}
+                    </button>
+
+                    <div className="vol-box">
+                        <span>🔊</span>
+                        <input
+                            type="range"
+                            min="0"
+                            max="1"
+                            step="0.01"
+                            value={volume}
+                            onChange={(e) => setVolume(parseFloat(e.target.value))}
+                        />
+                    </div>
+
+                    <div className="history-box">
+                        <strong>Recently Played</strong>
+
                         {history.length === 0 ? (
-                            <div style={{ textAlign: 'center', color: '#666', padding: '16px' }}>No songs yet...</div>
+                            <div style={{ padding: "12px", color: "#777" }}>No songs yet…</div>
                         ) : (
-                            history.map((item, index) => {
-                                const isItemFavorited = JSON.parse(localStorage.getItem('favorites') || '[]').includes(item.key);
-                                return (
-                                    <div key={index} className="history-item">
-                                        <div className="history-img">
-                                            <img
-                                                src={item.coverUrl || STREAM_LOGO_URL}
-                                                alt={`${item.artist} - ${item.song}`}
-                                            />
-                                        </div>
-                                        <div className="history-text">
-                                            <div className="history-title-item">
-                                                {item.song}
-                                                <span
-                                                    className="favorite-history"
-                                                    data-key={item.key}
-                                                    role="button"
-                                                    tabIndex="0"
-                                                    aria-label={`Favorite ${item.artist} - ${item.song}`}
-                                                    onClick={() => toggleFavorite(item.key)}
-                                                    onKeyDown={(e) => {
-                                                        if (e.key === 'Enter' || e.key === ' ') {
-                                                            e.preventDefault();
-                                                            toggleFavorite(item.key);
-                                                        }
-                                                    }}
-                                                >
-                                                    {isItemFavorited ? '★' : '☆'}
-                                                </span>
-                                            </div>
-                                            <div className="history-artist">{item.artist}</div>
-                                        </div>
+                            history.map((item, i) => (
+                                <div key={i} className="hist-item">
+                                    <div className="hist-img">
+                                        <img src={item.coverUrl || STREAM_LOGO_URL} alt="cover" />
                                     </div>
-                                );
-                            })
+
+                                    <div>
+                                        <div style={{ fontWeight: 600 }}>{item.song}</div>
+                                        <div style={{ fontSize: "0.8rem", color: "#666" }}>{item.artist}</div>
+                                    </div>
+                                </div>
+                            ))
                         )}
                     </div>
+
+                    <div className="status-line">{status}</div>
                 </div>
-                <div className="status" id="status">{status}</div>
+
+                <audio ref={playerRef} preload="auto" />
             </div>
-            <audio ref={playerRef} preload="auto" aria-hidden="true" />
-        </div>
+        </>
     );
 }
