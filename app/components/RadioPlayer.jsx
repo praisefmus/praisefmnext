@@ -109,7 +109,7 @@ export default function RadioPlayer() {
         if (playerRef.current) playerRef.current.volume = volume;
     }, [volume]);
 
-    // Metadados do stream
+    // Metadados
     useEffect(() => {
         const updateClock = () => {
             const now = new Date();
@@ -179,156 +179,17 @@ export default function RadioPlayer() {
 {/* ---------------- CSS GLOBAL + FADE ---------------- */}
 
 <style jsx global>{`
-    :root {
-        --primary: #ff527c;
-        --bg: #f3f4f6;
-        --card: #ffffff;
-        --text: #222;
-        --muted: #555;
-    }
-
-    body {
-        background: var(--bg);
-        margin: 0;
-        padding: 0;
-        font-family: "Poppins", sans-serif;
-    }
-
-    .player-box {
-        max-width: 1100px;
-        margin: 40px auto;
-        background: var(--card);
-        padding: 30px;
-        border-radius: 22px;
-        box-shadow: 0 10px 35px rgba(0,0,0,0.09);
-        display: flex;
-        flex-direction: column;
-        gap: 25px;
-    }
-
-    @media (min-width: 900px) {
-        .player-box {
-            flex-direction: row;
-            padding: 50px;
-            gap: 40px;
-        }
-    }
-
-    .left-area {
-        flex: 1;
-        text-align: center;
-    }
-
-    @media (min-width: 900px) {
-        .left-area { text-align: left; }
-    }
-
-    .cover {
-        width: 260px;
-        height: 260px;
-        border-radius: 50%;
-        overflow: hidden;
-        margin: 0 auto 20px;
-        background: #ddd;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-
-    /* ✨ Fade suave da capa ✨ */
-    .cover img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover !important;
-        display: block !important;
-        opacity: 0;
-        transition: opacity 0.7s ease-in-out;
-    }
-
-    .cover img.loaded {
-        opacity: 1;
-    }
-
-    .title {
-        font-size: 1.25rem;
-        font-weight: 700;
-        color: var(--text);
-    }
-
-    .clock {
-        margin-top: 6px;
-        color: var(--muted);
-    }
-
-    .right-area {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        gap: 20px;
-    }
-
-    .play-btn {
-        background: var(--primary);
-        color: #fff;
-        padding: 15px;
-        border: none;
-        border-radius: 50px;
-        cursor: pointer;
-        font-size: 1.2rem;
-        font-weight: 700;
-    }
-
-    .volume-box {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-    }
-
-    .history-area {
-        background: #fafafa;
-        padding: 16px;
-        border-radius: 12px;
-    }
-
-    .hist-item {
-        display: flex;
-        gap: 12px;
-        padding: 10px 0;
-        border-bottom: 1px solid #eee;
-    }
-
-    .hist-item:last-child {
-        border-bottom: none;
-    }
-
-    .hist-img {
-        width: 45px;
-        height: 45px;
-        border-radius: 8px;
-        overflow: hidden;
-        background: #ddd;
-    }
-
-    /* Fade também no histórico */
+    .cover img,
     .hist-img img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
         opacity: 0;
         transition: opacity 0.7s ease-in-out;
     }
 
+    .cover img.loaded,
     .hist-img img.loaded {
         opacity: 1;
     }
-
-    .status {
-        font-size: .9rem;
-        color: var(--muted);
-        padding-top: 10px;
-    }
 `}</style>
-
 
 {/* ---------------- PLAYER UI ---------------- */}
 
@@ -338,8 +199,11 @@ export default function RadioPlayer() {
     <div className="left-area">
         <div className="cover">
             <img
-                src={coverUrl || STREAM_LOGO_URL}
-                onError={(e) => { e.target.src = STREAM_LOGO_URL; }}
+                src={coverUrl && coverUrl.length > 10 ? coverUrl : STREAM_LOGO_URL}
+                onError={(e) => {
+                    e.target.src = STREAM_LOGO_URL;
+                    e.target.classList.add("loaded");
+                }}
                 onLoad={(e) => e.target.classList.add("loaded")}
                 alt="Album Cover"
             />
@@ -378,8 +242,11 @@ export default function RadioPlayer() {
                     <div key={i} className="hist-item">
                         <div className="hist-img">
                             <img
-                                src={item.coverUrl || STREAM_LOGO_URL}
-                                onError={(e) => (e.target.src = STREAM_LOGO_URL)}
+                                src={item.coverUrl && item.coverUrl.length > 10 ? item.coverUrl : STREAM_LOGO_URL}
+                                onError={(e) => {
+                                    e.target.src = STREAM_LOGO_URL;
+                                    e.target.classList.add("loaded");
+                                }}
                                 onLoad={(e) => e.target.classList.add("loaded")}
                                 alt="cover"
                             />
