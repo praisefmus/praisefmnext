@@ -1,4 +1,4 @@
-// app/layout.js
+// app/layout.tsx
 import './globals.css';
 
 // Metadados da página
@@ -7,7 +7,12 @@ export const metadata = {
   description: "Listen to Praise & Worship music live from Praise FM U.S.",
 };
 
-export default function RootLayout({ children }) {
+// Tipagem para o parâmetro children
+interface RootLayoutProps {
+  children: React.ReactNode;
+}
+
+export default function RootLayout({ children }: RootLayoutProps) {
   return (
     <html lang="en">
       <head>
@@ -29,7 +34,7 @@ export default function RootLayout({ children }) {
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
 
-        {/* Font Awesome (opcional, se você usar ícones) */}
+        {/* Font Awesome */}
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" />
       </head>
       <body>{children}</body>
