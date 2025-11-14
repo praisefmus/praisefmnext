@@ -28,15 +28,15 @@ export default function RadioPlayer() {
     // Detectar comerciais
     const isCommercial = (title) => {
         const keywords = [
-            "commercial","advertisement","sponsor","spot",
-            "publicidade","intervalo","break","jingle",
-            "comercial","anuncio","patrocinio"
+            "commercial", "advertisement", "sponsor", "spot",
+            "publicidade", "intervalo", "break", "jingle",
+            "comercial", "anuncio", "patrocinio"
         ];
         const text = title.toLowerCase();
         return keywords.some(k => text.includes(k));
     };
 
-    // Buscar capa
+    // Buscar capa no Last.fm
     const fetchCoverArt = async (artist, song) => {
         if (!artist || !song || isCommercial(song)) return STREAM_LOGO_URL;
 
@@ -51,8 +51,8 @@ export default function RadioPlayer() {
                 const images = data.track.album.image;
                 const cover = images.find(img => img.size === "extralarge") || images[images.length - 1];
 
-                const url = cover['#text']?.trim() || "";
-                if (url !== "") return url;
+                const url = cover["#text"]?.trim();
+                if (url && url.length > 10) return url;
             }
 
             return STREAM_LOGO_URL;
@@ -104,12 +104,12 @@ export default function RadioPlayer() {
         };
     }, []);
 
-    // Volume
+    // Volume update
     useEffect(() => {
         if (playerRef.current) playerRef.current.volume = volume;
     }, [volume]);
 
-    // Metadados
+    // Metadados Zeno
     useEffect(() => {
         const updateClock = () => {
             const now = new Date();
@@ -184,7 +184,6 @@ export default function RadioPlayer() {
         opacity: 0;
         transition: opacity 0.7s ease-in-out;
     }
-
     .cover img.loaded,
     .hist-img img.loaded {
         opacity: 1;
@@ -199,7 +198,14 @@ export default function RadioPlayer() {
     <div className="left-area">
         <div className="cover">
             <img
-                src={coverUrl && coverUrl.length > 10 ? coverUrl : STREAM_LOGO_URL}
+                src={
+                    coverUrl &&
+                    coverUrl !== "" &&
+                    coverUrl !== " " &&
+                    coverUrl.length > 10
+                        ? coverUrl
+                        : STREAM_LOGO_URL
+                }
                 onError={(e) => {
                     e.target.src = STREAM_LOGO_URL;
                     e.target.classList.add("loaded");
@@ -242,7 +248,14 @@ export default function RadioPlayer() {
                     <div key={i} className="hist-item">
                         <div className="hist-img">
                             <img
-                                src={item.coverUrl && item.coverUrl.length > 10 ? item.coverUrl : STREAM_LOGO_URL}
+                                src={
+                                    item.coverUrl &&
+                                    item.coverUrl !== "" &&
+                                    item.coverUrl !== " " &&
+                                    item.coverUrl.length > 10
+                                        ? item.coverUrl
+                                        : STREAM_LOGO_URL
+                                }
                                 onError={(e) => {
                                     e.target.src = STREAM_LOGO_URL;
                                     e.target.classList.add("loaded");
