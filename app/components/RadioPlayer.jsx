@@ -107,10 +107,8 @@ export default function RadioPlayer() {
 
     useEffect(() => {
         const audio = playerRef.current;
-        if (audio) {
-            audio.src = STREAM_URL;
-            audio.volume = volume;
-        }
+        audio.src = STREAM_URL;
+        audio.volume = volume;
 
         const clock = setInterval(() => {
             const now = new Date();
@@ -149,7 +147,6 @@ export default function RadioPlayer() {
 
     const handlePlayPause = () => {
         const p = playerRef.current;
-        if (!p) return;
         if (!playing) p.play();
         else p.pause();
         setPlaying(!playing);
@@ -158,7 +155,7 @@ export default function RadioPlayer() {
     const handleVolumeChange = e => {
         const v = parseFloat(e.target.value);
         setVolume(v);
-        if (playerRef.current) playerRef.current.volume = v;
+        playerRef.current.volume = v;
     };
 
     return (
@@ -173,19 +170,19 @@ export default function RadioPlayer() {
                     display: flex;
                     justify-content: center;
                     align-items: center;
+                    background: #fafafa;
                     padding: 20px;
-                    background: #f5f5f5;
                 }
 
                 .container {
                     width: 100%;
-                    max-width: 950px;
-                    background: #fff;
-                    border-radius: 20px;
-                    box-shadow: 0 10px 35px rgba(0,0,0,0.08);
-                    padding: 35px;
+                    max-width: 980px;
+                    background: white;
+                    border-radius: 22px;
+                    padding: 40px;
                     display: flex;
                     gap: 40px;
+                    box-shadow: 0 10px 40px rgba(0,0,0,0.08);
                     font-family: Poppins, sans-serif;
                 }
 
@@ -200,36 +197,35 @@ export default function RadioPlayer() {
                 .left {
                     flex: 1;
                     display: flex;
-                    flex-direction: column;
                     align-items: center;
+                    flex-direction: column;
                 }
 
                 .title {
                     font-weight: 700;
                     font-size: 1.6rem;
-                    color: var(--accent);
                     margin-bottom: 10px;
+                    color: #333;
                 }
 
-                .showImage {
-                    width: 240px;
-                    height: 240px;
+                .cover {
+                    width: 250px;
+                    height: 250px;
                     border-radius: 50%;
                     overflow: hidden;
-                    box-shadow: 0 8px 20px rgba(0,0,0,0.15);
-                    margin-bottom: 16px;
-                    flex-shrink: 0;
+                    box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+                    margin-bottom: 18px;
                 }
-                .showImage img {
+                .cover img {
                     width: 100%;
                     height: 100%;
                     object-fit: cover;
                 }
 
                 @media (max-width: 780px) {
-                    .showImage {
-                        width: 195px;
-                        height: 195px;
+                    .cover {
+                        width: 200px;
+                        height: 200px;
                     }
                 }
 
@@ -237,10 +233,10 @@ export default function RadioPlayer() {
                     flex: 1;
                 }
 
-                /* BOTÃO PLAY/PAUSE CINZA */
-                .playButton {
+                /* BOTÃO CINZA */
+                .playBtn {
                     width: 100%;
-                    height: 64px;
+                    height: 62px;
                     border-radius: 14px;
                     background: linear-gradient(180deg, #555, #3f3f3f);
                     border: none;
@@ -248,66 +244,51 @@ export default function RadioPlayer() {
                     display: flex;
                     justify-content: center;
                     align-items: center;
-                    box-shadow: 0 8px 18px rgba(0,0,0,0.22);
-                    transition: transform .14s ease, box-shadow .14s ease;
+                    box-shadow: 0 8px 20px rgba(0,0,0,0.22);
+                    transition: transform .12s, box-shadow .12s;
                 }
-                .playButton:active {
-                    transform: translateY(1px) scale(0.995);
+                .playBtn:active {
+                    transform: translateY(1px) scale(.99);
                 }
 
                 .icon {
                     width: 34px;
                     height: 34px;
                     fill: #ffffffcc;
-                    transition: opacity .12s ease, transform .15s ease;
                 }
 
-                /* SLIDER */
                 .slider {
-                    width: 100%;
-                    margin: 16px 0 24px 0;
+                    margin: 20px 0;
                 }
                 .slider input {
                     width: 100%;
-                    height: 4px;
-                    border-radius: 50px;
-                    -webkit-appearance: none;
-                    background: #ddd;
-                }
-                .slider input::-webkit-slider-thumb {
-                    -webkit-appearance: none;
-                    width: 16px;
-                    height: 16px;
-                    border-radius: 50%;
-                    background: var(--accent);
                 }
 
                 .historyItem {
                     display: flex;
                     align-items: center;
                     gap: 12px;
-                    padding: 8px 0;
+                    margin: 10px 0;
                 }
-
                 .historyImg {
-                    width: 48px;
-                    height: 48px;
-                    object-fit: cover;
+                    width: 50px;
+                    height: 50px;
                     border-radius: 6px;
+                    object-fit: cover;
                 }
 
                 .status {
                     text-align: center;
-                    margin-top: 12px;
-                    color: #444;
+                    margin-top: 16px;
                 }
             `}</style>
 
             <div className="container">
+
                 <div className="left">
                     <div className="title">Praise FM U.S.</div>
 
-                    <div className="showImage">
+                    <div className="cover">
                         <img src={coverUrl || STREAM_LOGO_URL} />
                     </div>
 
@@ -317,8 +298,7 @@ export default function RadioPlayer() {
                 </div>
 
                 <div className="right">
-
-                    <button className="playButton" onClick={handlePlayPause}>
+                    <button className="playBtn" onClick={handlePlayPause}>
                         {!playing ? (
                             <svg className="icon" viewBox="0 0 64 64">
                                 <path d="M16 12v40l36-20L16 12z"/>
@@ -347,7 +327,7 @@ export default function RadioPlayer() {
                         <div key={i} className="historyItem">
                             <img src={item.coverUrl} className="historyImg" />
                             <div>
-                                <div><strong>{item.song}</strong></div>
+                                <strong>{item.song}</strong>
                                 <div>{item.artist}</div>
                             </div>
                         </div>
