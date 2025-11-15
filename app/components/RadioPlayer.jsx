@@ -100,8 +100,24 @@ export default function RadioPlayer() {
 
     const clock = setInterval(() => {
       const now = new Date();
-      setCurrentTime(now.toLocaleTimeString("en-US", { timeZone: "America/Chicago", "en-US", { hour: "2-digit", minute: "2-digit", hour12: true }));
-      setCurrentDate(now.toLocaleDateString("en-US", { timeZone: "America/Chicago", "en-US", { day: "2-digit", month: "short", year: "numeric" }));
+
+      setCurrentTime(
+        now.toLocaleTimeString("en-US", {
+          timeZone: "America/Chicago",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: true,
+        })
+      );
+
+      setCurrentDate(
+        now.toLocaleDateString("en-US", {
+          timeZone: "America/Chicago",
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        })
+      );
     }, 1000);
 
     const sse = new EventSource(NOWPLAYING_API);
