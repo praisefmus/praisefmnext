@@ -2,7 +2,327 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Fonte opcional */
+/* Estilos globais do Praise FM U.S. */
+:root {
+    /* COR: ROSA/LARANJA para o tema U.S. */
+    --primary-color: #ff527c;
+    --secondary-color: #ffffff;
+    --background-color: #f0f4f8;
+    --text-color: #333;
+    --light-text-color: #666;
+    --border-color: #eee;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Poppins', sans-serif;
+}
+
 body {
-  font-family: 'Poppins', sans-serif;
+    background-color: var(--background-color);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    padding: 20px;
+    overflow: hidden; /* Evita rolagem indesejada */
+}
+
+/* Layout responsivo */
+.container {
+    background-color: var(--secondary-color);
+    border-radius: 16px;
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.12);
+    width: 100%;
+    max-width: 1000px; /* Aumentei para acomodar o layout horizontal */
+    padding: 32px;
+    text-align: center;
+    display: flex;
+    flex-direction: column; /* Layout vertical padrão */
+}
+
+/* Layout Horizontal para telas largas (semelhante ao da WAVE FM) */
+@media (min-width: 1024px) {
+    .container {
+        flex-direction: row; /* Muda para linha */
+        align-items: center; /* Alinha os itens ao centro verticalmente */
+        gap: 30px; /* Espaçamento entre os lados */
+        text-align: left; /* Alinha o texto à esquerda no layout horizontal */
+        padding: 40px;
+    }
+}
+
+.header {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    margin-bottom: 20px;
+    height: 24px;
+}
+
+.favorite-btn {
+    background: none;
+    border: none;
+    color: var(--light-text-color);
+    font-size: 24px;
+    cursor: pointer;
+    padding: 0 5px;
+    transition: color 0.2s;
+}
+
+.favorite-btn.favorited {
+    color: #ffb300;
+}
+
+/* Lado Esquerdo: Imagem e Info */
+.content-left {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1; /* Ocupa metade no layout horizontal */
+}
+
+.station-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--primary-color);
+    margin-bottom: 5px;
+}
+
+.station-desc {
+    font-size: 0.9rem;
+    color: var(--light-text-color);
+    margin-bottom: 15px;
+}
+
+.show-image {
+    width: 200px;
+    height: 200px;
+    border-radius: 50%;
+    overflow: hidden;
+    margin-bottom: 25px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+    transition: transform 0.3s ease-out, border 0.3s ease-out;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: #f0f0f0;
+}
+
+.show-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.show-image.favorited-cover {
+    border: 3px solid #ffb300;
+    transform: scale(1.02);
+}
+
+.show-info {
+    margin-bottom: 25px;
+    width: 100%;
+}
+
+.live-indicator {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--primary-color);
+    text-transform: uppercase;
+    margin-bottom: 5px;
+}
+
+.show-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-color);
+    margin-bottom: 2px;
+    word-wrap: break-word;
+    white-space: normal;
+}
+
+.show-date {
+    font-size: 0.8rem;
+    color: var(--light-text-color);
+}
+
+/* Lado Direito: Controles e Histórico */
+.content-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start; /* Alinha à esquerda no layout horizontal */
+    flex: 1; /* Ocupa metade no layout horizontal */
+    gap: 20px;
+}
+
+.play-button {
+    background-color: var(--primary-color);
+    color: var(--secondary-color);
+    border: none;
+    border-radius: 50px;
+    padding: 12px 30px;
+    font-size: 1.2rem;
+    font-weight: 700;
+    cursor: pointer;
+    width: 100%;
+    max-width: 300px; /* Limita o botão em telas muito largas */
+    transition: background-color 0.2s, box-shadow 0.2s;
+    box-shadow: 0 4px 10px rgba(255, 82, 124, 0.4);
+}
+
+.play-button:hover {
+    background-color: #e5476d;
+    box-shadow: 0 6px 15px rgba(255, 82, 124, 0.6);
+}
+
+.volume-control {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    max-width: 300px;
+    padding: 0 10px;
+}
+
+.volume-control i {
+    color: var(--light-text-color);
+    margin-right: 10px;
+    font-size: 1.1rem;
+}
+
+.volume-slider {
+    flex-grow: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    background: var(--border-color);
+    border-radius: 5px;
+    outline: none;
+}
+
+.volume-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    background: var(--primary-color);
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.volume-slider::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    background: var(--primary-color);
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.history-section {
+    width: 100%;
+    max-width: 300px;
+}
+
+.history-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-color);
+    margin-bottom: 10px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 5px;
+}
+
+.history-list {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.history-item {
+    display: flex;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #eee;
+}
+
+.history-item:last-child {
+    border-bottom: none;
+}
+
+.history-img {
+    width: 40px;
+    height: 40px;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-right: 10px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: var(--background-color);
+}
+
+.history-img img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.history-text {
+    flex-grow: 1;
+    min-width: 0;
+}
+
+.history-title-item {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text-color);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: flex;
+    justify-content: space-between;
+}
+
+.history-artist {
+    font-size: 0.8rem;
+    color: var(--light-text-color);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.favorite-history {
+    cursor: pointer;
+    font-size: 1.1rem;
+    margin-left: 5px;
+    color: var(--light-text-color);
+    transition: color 0.2s;
+}
+
+.favorite-history[data-key*="★"] {
+    color: #ffb300;
+}
+
+.status {
+    font-size: 0.8rem;
+    color: var(--light-text-color);
+    padding-top: 20px;
+    border-top: 1px solid var(--border-color);
+    margin-top: 20px;
+    width: 100%;
+    max-width: 300px;
+}
+
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0,0,0,0);
+    border: 0;
 }
