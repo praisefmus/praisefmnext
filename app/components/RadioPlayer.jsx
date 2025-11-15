@@ -23,9 +23,7 @@ export default function RadioPlayer() {
     const STREAM_LOGO_URL = "/logo-praisefm.webp";
     const MAX_HISTORY = 5;
 
-    // ---------------------------------------------------------
-    // CAPAS PERSONALIZADAS
-    // ---------------------------------------------------------
+    // PROGRAM CAPAS
     const PROGRAM_COVERS = {
         "commercial break": "/commercial.webp",
         "praise fm carpool": "/carpool.webp"
@@ -33,136 +31,65 @@ export default function RadioPlayer() {
 
     const detectProgramCover = (artist, song) => {
         const text = `${artist} ${song}`.toLowerCase();
-
         for (const key in PROGRAM_COVERS) {
-            if (text.includes(key)) {
-                return PROGRAM_COVERS[key];
-            }
+            if (text.includes(key)) return PROGRAM_COVERS[key];
         }
         return null;
     };
 
-    // ---------------------------------------------------------
-    // DETECÇÃO INTELIGENTE DE COMERCIAIS
-    // ---------------------------------------------------------
     const isCommercial = (text) => {
         if (!text) return true;
-
-        const t = text.toLowerCase().trim();
-
-        const commercialWords = [
-            "spot", "commercial", "publicidade", "advert",
-            "ad break", "jingle", "intervalo", "promoção",
-            "oferta", "black friday", "loja", "shop", "compra", "desconto"
-        ];
-
-        if (commercialWords.some(w => t.includes(w))) return true;
-
-        const programWords = [
-            "show", "program", "praise fm", "worship", "devotional",
-            "news", "update", "live", "morning", "evening", "afternoon",
-            "special", "countdown", "mix", "edition", "segment", "radio"
-        ];
-
-        if (programWords.some(w => t.includes(w))) return false;
-
-        if (t.includes(" - ") && t.split(" - ")[1].length > 2) return false;
-
-        return t.length < 3;
+        const t = text.toLowerCase();
+        const words = ["spot", "commercial", "publicidade", "advert", "break", "jingle", "intervalo"];
+        return words.some(w => t.includes(w));
     };
 
-    // ---------------------------------------------------------
-    // FILTRO DE CAPAS RUINS
-    // ---------------------------------------------------------
-    const isBadCover = (artist, song, url) => {
-        if (!url) return true;
-
-        const badWords = [
-            "soundtrack", "motion picture", "original score",
-            "film", "movie", "ost", "theme", "tv"
-        ];
-
-        const low = url.toLowerCase();
-
-        if (badWords.some(w => low.includes(w))) return true;
-        if (low.includes("noimage") || low.includes("placeholder")) return true;
-
-        return false;
-    };
-
-    // ---------------------------------------------------------
-    // LAST.FM
-    // ---------------------------------------------------------
     const fetchLastFmCover = async (artist, song) => {
         try {
             const res = await fetch(
-                `https://ws.audioscrobbler.com/2.0/?method=track.getInfo&api_key=${LASTFM_KEY}&artist=${encodeURIComponent(
-                    artist
-                )}&track=${encodeURIComponent(song)}&format=json`
+                `https://ws.audioscrobbler.com/2.0/?method=track.getInfo&api_key=${LASTFM_KEY}&artist=${encodeURIComponent(artist)}&track=${encodeURIComponent(song)}&format=json`
             );
-
             const data = await res.json();
             const imgs = data?.track?.album?.image;
             if (!imgs) return null;
-
             const img = imgs.find(i => i.size === "extralarge") || imgs[imgs.length - 1];
-            const url = img?.["#text"] ?? "";
-
-            if (!isBadCover(artist, song, url)) return url;
-        } catch (_) {}
-
-        return null;
+            return img?.["#text"] || null;
+        } catch (_) {
+            return null;
+        }
     };
 
-    // ---------------------------------------------------------
-    // DISCOGS
-    // ---------------------------------------------------------
     const fetchDiscogsCover = async (artist, song) => {
         try {
             const q = encodeURIComponent(`${artist} ${song}`);
-
             const res = await fetch(
                 `https://api.discogs.com/database/search?q=${q}&token=${DISCOGS_KEY}&type=release`
             );
-
             const data = await res.json();
-            if (!data?.results || data.results.length === 0) return null;
-
-            const release = data.results[0];
-            if (!release.cover_image) return null;
-
-            if (!isBadCover(artist, song, release.cover_image)) return release.cover_image;
-        } catch (_) {}
-
-        return null;
+            if (!data.results?.length) return null;
+            return data.results[0].cover_image || null;
+        } catch (_) {
+            return null;
+        }
     };
 
-    // ---------------------------------------------------------
-    // CAPA FINAL
-    // ---------------------------------------------------------
     const fetchCoverArt = async (artist, song) => {
-        const isComm = isCommercial(song);
+        if (isCommercial(song)) return PROGRAM_COVERS["commercial break"];
 
-        if (isComm) return PROGRAM_COVERS["commercial break"];
+        const program = detectProgramCover(artist, song);
+        if (program) return program;
 
-        const programCover = detectProgramCover(artist, song);
-        if (programCover) return programCover;
+        const last = await fetchLastFmCover(artist, song);
+        if (last) return last;
 
-        const lastFm = await fetchLastFmCover(artist, song);
-        if (lastFm) return lastFm;
-
-        const discogs = await fetchDiscogsCover(artist, song);
-        if (discogs) return discogs;
+        const disc = await fetchDiscogsCover(artist, song);
+        if (disc) return disc;
 
         return STREAM_LOGO_URL;
     };
 
-    // ---------------------------------------------------------
-    // HISTÓRICO
-    // ---------------------------------------------------------
     const addToHistory = (song, artist, cover) => {
         if (isCommercial(song)) return;
-
         setHistory(prev => {
             const key = `${artist} - ${song}`;
             let list = prev.filter(i => i.key !== key);
@@ -171,36 +98,18 @@ export default function RadioPlayer() {
         });
     };
 
-    // ---------------------------------------------------------
-    // METADADOS AO VIVO (SSE)
-    // ---------------------------------------------------------
     useEffect(() => {
-        const p = playerRef.current;
-        p.src = STREAM_URL;
-        p.volume = volume;
+        const audio = playerRef.current;
+        audio.src = STREAM_URL;
+        audio.volume = volume;
 
         setInterval(() => {
             const now = new Date();
-            setCurrentTime(
-                now.toLocaleTimeString("en-US", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                    hour12: true,
-                    timeZone: "America/Chicago"
-                })
-            );
-            setCurrentDate(
-                now.toLocaleDateString("en-US", {
-                    day: "2-digit",
-                    month: "short",
-                    year: "numeric",
-                    timeZone: "America/Chicago"
-                })
-            );
+            setCurrentTime(now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true }));
+            setCurrentDate(now.toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric" }));
         }, 1000);
 
         const sse = new EventSource(NOWPLAYING_API);
-
         sse.onmessage = async e => {
             try {
                 const data = JSON.parse(e.data);
@@ -212,18 +121,20 @@ export default function RadioPlayer() {
                 const artist = parts[0];
                 const song = parts.slice(1).join(" ") || "Spot";
 
-                if (isCommercial(song)) {
-                    setCurrentTitle("Commercial Break");
-                } else {
-                    setCurrentTitle(`${artist} - ${song}`);
-                }
+                setCurrentTitle(
+                    isCommercial(song) ? "Commercial Break" : `${artist} - ${song}`
+                );
 
                 const cover = await fetchCoverArt(artist, song);
                 setCoverUrl(cover);
 
                 addToHistory(song, artist, cover);
 
-                setStatus(isCommercial(song) ? "Commercial Break" : `LIVE: ${artist} - ${song}`);
+                setStatus(
+                    isCommercial(song)
+                        ? "Commercial Break"
+                        : `LIVE: ${artist} - ${song}`
+                );
             } catch (_) {
                 setCoverUrl(STREAM_LOGO_URL);
             }
@@ -232,9 +143,6 @@ export default function RadioPlayer() {
         return () => sse.close();
     }, []);
 
-    // ---------------------------------------------------------
-    // PLAYER
-    // ---------------------------------------------------------
     const handlePlayPause = () => {
         const p = playerRef.current;
         if (!playing) p.play();
@@ -242,20 +150,16 @@ export default function RadioPlayer() {
         setPlaying(!playing);
     };
 
-    const handleVolumeChange = e => {
+    const handleVolumeChange = (e) => {
         const v = parseFloat(e.target.value);
         setVolume(v);
         if (playerRef.current) playerRef.current.volume = v;
     };
 
-    // ---------------------------------------------------------
-    // UI
-    // ---------------------------------------------------------
     return (
-        <div className="wrapper">
-
+        <div className="page">
             <style jsx>{`
-                .wrapper {
+                .page {
                     min-height: 100vh;
                     display: flex;
                     justify-content: center;
@@ -265,12 +169,12 @@ export default function RadioPlayer() {
                 }
 
                 .container {
-                    background: #fff;
                     width: 100%;
                     max-width: 950px;
+                    background: #fff;
                     border-radius: 20px;
                     box-shadow: 0 8px 25px rgba(0,0,0,0.1);
-                    padding: 30px;
+                    padding: 40px;
                     display: flex;
                     gap: 40px;
                     font-family: Poppins, sans-serif;
@@ -280,19 +184,17 @@ export default function RadioPlayer() {
                     .container {
                         flex-direction: column;
                         text-align: center;
-                        padding: 22px;
-                        gap: 25px;
+                        padding: 25px;
                     }
                 }
 
-                /* CAPA (CORRIGIDO) */
                 .show-image {
-                    width: 230px;
-                    height: 230px;
+                    width: 250px;
+                    height: 250px;
                     border-radius: 50%;
                     overflow: hidden;
-                    margin: 25px auto;
-                    box-shadow: 0 5px 18px rgba(0,0,0,0.18);
+                    margin-bottom: 20px;
+                    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
                     flex-shrink: 0;
                 }
 
@@ -304,59 +206,60 @@ export default function RadioPlayer() {
 
                 @media (max-width: 768px) {
                     .show-image {
-                        width: 180px;
-                        height: 180px;
+                        width: 210px;
+                        height: 210px;
+                        margin: 0 auto 20px auto;
                     }
                 }
 
-                /* HISTÓRICO CORRIGIDO */
                 .history-item {
                     display: flex;
                     align-items: center;
-                    gap: 14px;
+                    gap: 12px;
                     margin-bottom: 12px;
-                    width: 100%;
                 }
 
                 .history-img {
-                    width: 48px;
-                    height: 48px;
+                    width: 45px;
+                    height: 45px;
                     border-radius: 6px;
-                    flex-shrink: 0;
                     object-fit: cover;
+                    flex-shrink: 0;
                 }
 
-                .history-text {
-                    flex: 1;
-                    text-align: left;
+                .volume-slider {
+                    width: 100%;
+                    height: 4px;
+                    border-radius: 50px;
+                    background: #ddd;
+                    margin: 20px 0;
+                    -webkit-appearance: none;
                 }
 
-                @media (max-width: 768px) {
-                    .history-item {
-                        justify-content: flex-start;
-                        max-width: 90%;
-                        margin: 0 auto 12px auto;
-                    }
+                .volume-slider::-webkit-slider-thumb {
+                    width: 18px;
+                    height: 18px;
+                    border-radius: 50%;
+                    background: #ff4f79;
+                    -webkit-appearance: none;
                 }
+
             `}</style>
 
             <div className="container">
 
-                <div className="content-left">
-                    <div className="station-title">Praise FM U.S.</div>
-
+                <div className="left">
                     <div className="show-image">
                         <img src={coverUrl || STREAM_LOGO_URL} />
                     </div>
 
-                    <div className="live-indicator">LIVE • {currentTime}</div>
-                    <div className="show-title">{currentTitle}</div>
-                    <div className="show-date">{currentDate}</div>
+                    <h2>{currentTitle}</h2>
+                    <p>{currentDate}</p>
+                    <p>LIVE • {currentTime}</p>
                 </div>
 
-                <div className="content-right">
-
-                    <button className="play-button" onClick={handlePlayPause}>
+                <div className="right">
+                    <button onClick={handlePlayPause}>
                         {playing ? "⏸ Pause" : "▶ Play"}
                     </button>
 
@@ -370,20 +273,17 @@ export default function RadioPlayer() {
                         className="volume-slider"
                     />
 
-                    <div className="history-section">
-                        <div className="history-title">Recently Played</div>
+                    <h3>Recently Played</h3>
 
-                        {history.map((item, i) => (
-                            <div key={i} className="history-item">
-                                <img src={item.coverUrl || STREAM_LOGO_URL} className="history-img" />
-
-                                <div className="history-text">
-                                    <div className="history-title-item">{item.song}</div>
-                                    <div className="history-artist">{item.artist}</div>
-                                </div>
+                    {history.map((item, i) => (
+                        <div key={i} className="history-item">
+                            <img src={item.coverUrl} className="history-img" />
+                            <div>
+                                <div>{item.song}</div>
+                                <div>{item.artist}</div>
                             </div>
-                        ))}
-                    </div>
+                        </div>
+                    ))}
 
                     <div className="status">{status}</div>
                 </div>
