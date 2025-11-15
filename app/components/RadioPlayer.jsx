@@ -1,4 +1,4 @@
-// RadioPlayer.jsx com tema dark automático, transições animadas e responsivo para telas grandes
+// RadioPlayer.jsx — versão final 100% corrigida, responsiva, dark automático e com horário de Chicago
 
 'use client';
 
@@ -157,7 +157,7 @@ export default function RadioPlayer() {
   };
 
   return (
-    <div className={`page ${darkMode ? 'dark' : ''} min-h-screen transition-colors duration-500 bg-gray-100 dark:bg-gray-900`}>      
+    <div className={`page ${darkMode ? 'dark' : ''} min-h-screen transition-colors duration-500 bg-gray-100 dark:bg-gray-900`}>
       <div className="container mx-auto max-w-4xl p-6 rounded-2xl shadow-xl bg-white dark:bg-gray-800 transition-all duration-500 mt-6">
         <div className="flex flex-col items-center">
 
@@ -184,7 +184,7 @@ export default function RadioPlayer() {
           <p className="text-sm text-gray-600 dark:text-gray-300">{currentDate}</p>
           <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">LIVE • {currentTime}</p>
 
-          {/* BOTÃO PLAY/PAUSE COM ANIMAÇÃO */}
+          {/* BOTÃO PLAY/PAUSE */}
           <motion.button
             className="w-full mt-5 py-3 bg-gray-800 dark:bg-gray-700 text-white rounded-xl flex items-center justify-center"
             onClick={handlePlayPause}
@@ -204,6 +204,5 @@ export default function RadioPlayer() {
                 step="0.01"
                 value={volume}
                 onChange={(e) => setVolume(parseFloat(e.target.value))}
-                className="w-full mx-3"
-              />
-              <SpeakerWaveIcon className="w
+                className="w-full mx-3" />
+              <SpeakerWaveIcon
