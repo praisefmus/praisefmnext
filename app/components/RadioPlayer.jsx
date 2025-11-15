@@ -35,7 +35,7 @@ export default function RadioPlayer() {
             if (data.results?.length > 0) {
                 return data.results[0].artworkUrl100.replace("100x100bb", "600x600bb");
             }
-        } catch (_) {}
+        } catch (_) { }
         return null;
     };
 
@@ -51,7 +51,7 @@ export default function RadioPlayer() {
                 const url = pick?.["#text"] ?? "";
                 if (url && !url.includes("noimage") && !url.endsWith(".gif")) return url;
             }
-        } catch (_) {}
+        } catch (_) { }
         return null;
     };
 
@@ -73,6 +73,8 @@ export default function RadioPlayer() {
     };
 
     const addToHistory = (song, artist, cover) => {
+        if (isCommercial(song)) return; // não adiciona comerciais no histórico
+
         setHistory(prev => {
             const key = `${artist} - ${song}`;
             let list = prev.filter(i => i.key !== key);
@@ -105,7 +107,11 @@ export default function RadioPlayer() {
                 const artist = parts[0];
                 const song = parts.slice(1).join(" ") || "Spot";
 
-                setCurrentTitle(`${artist} - ${song}`);
+                if (isCommercial(song)) {
+                    setCurrentTitle("Commercial Break");
+                } else {
+                    setCurrentTitle(`${artist} - ${song}`);
+                }
 
                 const cover = await fetchCoverArt(artist, song);
                 setCoverUrl(cover);
@@ -113,6 +119,7 @@ export default function RadioPlayer() {
                 addToHistory(song, artist, cover);
 
                 setStatus(isCommercial(song) ? "Commercial Break" : `LIVE: ${artist} - ${song}`);
+
             } catch {
                 setCoverUrl(STREAM_LOGO_URL);
             }
@@ -135,7 +142,6 @@ export default function RadioPlayer() {
 
     return (
         <div className="wrapper">
-
             <style jsx>{`
                 .wrapper {
                     min-height: 100vh;
@@ -158,7 +164,6 @@ export default function RadioPlayer() {
                     font-family: Poppins, sans-serif;
                 }
 
-                /* MOBILE — 1 COLUNA */
                 @media (max-width: 768px) {
                     .container {
                         flex-direction: column;
@@ -231,12 +236,6 @@ export default function RadioPlayer() {
                     flex: 1;
                 }
 
-                @media (max-width: 768px) {
-                    .content-right {
-                        width: 100%;
-                    }
-                }
-
                 .play-button {
                     width: 100%;
                     padding: 15px;
@@ -248,11 +247,10 @@ export default function RadioPlayer() {
                     font-size: 1.2rem;
                     font-weight: bold;
                     margin-bottom: 20px;
-                    box-shadow: 0 4px 12px rgba(255,82,124,0.4);
                 }
 
                 .history-section {
-                    margin-top: 10px;
+                    margin-top: 15px;
                 }
 
                 .history-title {
@@ -311,6 +309,7 @@ export default function RadioPlayer() {
                     </div>
 
                     <div className="live-indicator">LIVE • {currentTime}</div>
+
                     <div className="show-title">{currentTitle}</div>
                     <div className="show-date">{currentDate}</div>
                 </div>
