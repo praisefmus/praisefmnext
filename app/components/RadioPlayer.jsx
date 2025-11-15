@@ -6,8 +6,8 @@ import {
   PlayIcon,
   PauseIcon,
   ShareIcon,
-  VolumeUpIcon,
-  VolumeOffIcon,
+  SpeakerWaveIcon,
+  SpeakerXMarkIcon,
 } from '@heroicons/react/24/solid';
 
 // Theme reducer
@@ -149,7 +149,6 @@ export default function RadioPlayer() {
     audio.src = STREAM_URL;
     audio.volume = volume;
 
-    // Buffer progress
     audio.addEventListener('progress', () => {
       if (audio.buffered.length > 0) {
         setBufferProgress((audio.buffered.end(0) / audio.duration) * 100 || 0);
@@ -235,7 +234,7 @@ export default function RadioPlayer() {
 
           <div className="w-full mt-4">
             <div className="flex items-center">
-              <VolumeOffIcon className="w-5 h-5" />
+              <SpeakerXMarkIcon className="w-5 h-5" />
               <input
                 type="range"
                 min="0"
@@ -245,7 +244,7 @@ export default function RadioPlayer() {
                 onChange={(e) => setVolume(parseFloat(e.target.value))}
                 className="w-full mx-3"
               />
-              <VolumeUpIcon className="w-5 h-5" />
+              <SpeakerWaveIcon className="w-5 h-5" />
             </div>
           </div>
 
