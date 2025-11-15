@@ -138,14 +138,12 @@ export default function RadioPlayer() {
     };
 
     // ---------------------------------------------------------
-    // CAPA FINAL (Program → Last.fm → Discogs → Logo)
+    // CAPA FINAL
     // ---------------------------------------------------------
     const fetchCoverArt = async (artist, song) => {
         const isComm = isCommercial(song);
 
-        if (isComm) {
-            return PROGRAM_COVERS["commercial break"];
-        }
+        if (isComm) return PROGRAM_COVERS["commercial break"];
 
         const programCover = detectProgramCover(artist, song);
         if (programCover) return programCover;
@@ -174,7 +172,7 @@ export default function RadioPlayer() {
     };
 
     // ---------------------------------------------------------
-    // SSE (METADADOS AO VIVO)
+    // METADADOS AO VIVO (SSE)
     // ---------------------------------------------------------
     useEffect(() => {
         const p = playerRef.current;
@@ -184,10 +182,20 @@ export default function RadioPlayer() {
         setInterval(() => {
             const now = new Date();
             setCurrentTime(
-                now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "America/Chicago" })
+                now.toLocaleTimeString("en-US", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    hour12: true,
+                    timeZone: "America/Chicago"
+                })
             );
             setCurrentDate(
-                now.toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric", timeZone: "America/Chicago" })
+                now.toLocaleDateString("en-US", {
+                    day: "2-digit",
+                    month: "short",
+                    year: "numeric",
+                    timeZone: "America/Chicago"
+                })
             );
         }, 1000);
 
@@ -277,25 +285,31 @@ export default function RadioPlayer() {
                     }
                 }
 
-                /* SLIDER MODERNO */
-                .volume-slider {
-                    width: 100%;
-                    height: 4px;
-                    background: #ddd;
-                    border-radius: 50px;
-                    margin: 5px 0 20px 0;
-                    -webkit-appearance: none;
-                }
-                .volume-slider::-webkit-slider-thumb {
-                    -webkit-appearance: none;
-                    width: 18px;
-                    height: 18px;
+                /* CAPA (CORRIGIDO) */
+                .show-image {
+                    width: 230px;
+                    height: 230px;
                     border-radius: 50%;
-                    background: #ff527c;
-                    box-shadow: 0 0 8px rgba(255,82,124,0.6);
+                    overflow: hidden;
+                    margin: 25px auto;
+                    box-shadow: 0 5px 18px rgba(0,0,0,0.18);
+                    flex-shrink: 0;
                 }
 
-                /* HISTÓRICO — OPÇÃO A */
+                .show-image img {
+                    width: 100%;
+                    height: 100%;
+                    object-fit: cover;
+                }
+
+                @media (max-width: 768px) {
+                    .show-image {
+                        width: 180px;
+                        height: 180px;
+                    }
+                }
+
+                /* HISTÓRICO CORRIGIDO */
                 .history-item {
                     display: flex;
                     align-items: center;
@@ -309,6 +323,7 @@ export default function RadioPlayer() {
                     height: 48px;
                     border-radius: 6px;
                     flex-shrink: 0;
+                    object-fit: cover;
                 }
 
                 .history-text {
