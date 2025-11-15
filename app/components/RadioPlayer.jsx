@@ -24,7 +24,26 @@ export default function RadioPlayer() {
     const MAX_HISTORY = 5;
 
     // ---------------------------------------------------------
-    // DETECÇÃO INTELIGENTE DE COMERCIAIS (CORRIGIDA)
+    // CAPAS PERSONALIZADAS
+    // ---------------------------------------------------------
+    const PROGRAM_COVERS = {
+        "commercial break": "/commercial.webp",
+        "praise fm carpool": "/carpool.webp"
+    };
+
+    const detectProgramCover = (artist, song) => {
+        const text = `${artist} ${song}`.toLowerCase();
+
+        for (const key in PROGRAM_COVERS) {
+            if (text.includes(key)) {
+                return PROGRAM_COVERS[key];
+            }
+        }
+        return null;
+    };
+
+    // ---------------------------------------------------------
+    // DETECÇÃO INTELIGENTE DE COMERCIAIS
     // ---------------------------------------------------------
     const isCommercial = (text) => {
         if (!text) return true;
@@ -39,7 +58,6 @@ export default function RadioPlayer() {
 
         if (commercialWords.some(w => t.includes(w))) return true;
 
-        // Palavras que são programas → NÃO são comerciais
         const programWords = [
             "show", "program", "praise fm", "worship", "devotional",
             "news", "update", "live", "morning", "evening", "afternoon",
@@ -48,17 +66,13 @@ export default function RadioPlayer() {
 
         if (programWords.some(w => t.includes(w))) return false;
 
-        // "Nome — Texto": provavelmente programa
-        if (t.includes(" - ") && t.split(" - ")[1].length > 2) {
-            return false;
-        }
+        if (t.includes(" - ") && t.split(" - ")[1].length > 2) return false;
 
-        // Só trata como comercial se for extremamente curto e genérico
         return t.length < 3;
     };
 
     // ---------------------------------------------------------
-    // FILTRO FORTE PARA CAPAS
+    // FILTRO DE CAPAS RUINS
     // ---------------------------------------------------------
     const isBadCover = (artist, song, url) => {
         if (!url) return true;
@@ -77,7 +91,7 @@ export default function RadioPlayer() {
     };
 
     // ---------------------------------------------------------
-    // LAST.FM (PRIORIDADE 1)
+    // LAST.FM
     // ---------------------------------------------------------
     const fetchLastFmCover = async (artist, song) => {
         try {
@@ -101,7 +115,7 @@ export default function RadioPlayer() {
     };
 
     // ---------------------------------------------------------
-    // DISCOGS (PRIORIDADE 2)
+    // DISCOGS
     // ---------------------------------------------------------
     const fetchDiscogsCover = async (artist, song) => {
         try {
@@ -124,10 +138,17 @@ export default function RadioPlayer() {
     };
 
     // ---------------------------------------------------------
-    // CAPA FINAL (PRIORIDADE COMPLETA)
+    // CAPA FINAL (Program → Last.fm → Discogs → Logo)
     // ---------------------------------------------------------
     const fetchCoverArt = async (artist, song) => {
-        if (isCommercial(song)) return STREAM_LOGO_URL;
+        const isComm = isCommercial(song);
+
+        if (isComm) {
+            return PROGRAM_COVERS["commercial break"];
+        }
+
+        const programCover = detectProgramCover(artist, song);
+        if (programCover) return programCover;
 
         const lastFm = await fetchLastFmCover(artist, song);
         if (lastFm) return lastFm;
@@ -153,14 +174,13 @@ export default function RadioPlayer() {
     };
 
     // ---------------------------------------------------------
-    // METADADOS VIA SSE
+    // SSE (METADADOS AO VIVO)
     // ---------------------------------------------------------
     useEffect(() => {
         const p = playerRef.current;
         p.src = STREAM_URL;
         p.volume = volume;
 
-        // relógio
         setInterval(() => {
             const now = new Date();
             setCurrentTime(
@@ -204,7 +224,9 @@ export default function RadioPlayer() {
         return () => sse.close();
     }, []);
 
-    // PLAY / PAUSE
+    // ---------------------------------------------------------
+    // PLAYER
+    // ---------------------------------------------------------
     const handlePlayPause = () => {
         const p = playerRef.current;
         if (!playing) p.play();
@@ -212,7 +234,6 @@ export default function RadioPlayer() {
         setPlaying(!playing);
     };
 
-    // VOLUME
     const handleVolumeChange = e => {
         const v = parseFloat(e.target.value);
         setVolume(v);
@@ -274,47 +295,7 @@ export default function RadioPlayer() {
                     box-shadow: 0 0 8px rgba(255,82,124,0.6);
                 }
 
-                .content-left {
-                    flex: 1;
-                }
-
-                .station-title {
-                    font-size: 1.6rem;
-                    font-weight: bold;
-                    color: #ff527c;
-                    text-align: center;
-                }
-
-                .show-image {
-                    width: 230px;
-                    height: 230px;
-                    margin: 25px auto;
-                    border-radius: 50%;
-                    overflow: hidden;
-                    box-shadow: 0 5px 18px rgba(0,0,0,0.18);
-                }
-
-                @media (max-width: 768px) {
-                    .show-image {
-                        width: 180px;
-                        height: 180px;
-                    }
-                }
-
                 /* HISTÓRICO — OPÇÃO A */
-                .history-section {
-                    margin-top: 25px;
-                }
-                .history-title {
-                    font-size: 1.1rem;
-                    font-weight: bold;
-                    margin-bottom: 12px;
-                    text-align: left;
-                }
-                @media (max-width: 768px) {
-                    .history-title { text-align: center; }
-                }
-
                 .history-item {
                     display: flex;
                     align-items: center;
@@ -335,47 +316,17 @@ export default function RadioPlayer() {
                     text-align: left;
                 }
 
-                .history-title-item {
-                    font-size: .95rem;
-                    font-weight: 600;
-                }
-                .history-artist {
-                    color: #666;
-                    font-size: .8rem;
-                }
-
                 @media (max-width: 768px) {
                     .history-item {
                         justify-content: flex-start;
                         max-width: 90%;
                         margin: 0 auto 12px auto;
                     }
-                    .history-text { text-align: left; }
-                }
-
-                .play-button {
-                    width: 100%;
-                    padding: 15px;
-                    border-radius: 50px;
-                    background: #ff527c;
-                    color: #fff;
-                    border: none;
-                    font-size: 1.2rem;
-                    font-weight: 700;
-                    margin-bottom: 10px;
-                }
-
-                .status {
-                    margin-top: 12px;
-                    text-align: center;
-                    color: #555;
-                    font-size: .85rem;
                 }
             `}</style>
 
             <div className="container">
 
-                {/* ESQUERDA */}
                 <div className="content-left">
                     <div className="station-title">Praise FM U.S.</div>
 
@@ -388,7 +339,6 @@ export default function RadioPlayer() {
                     <div className="show-date">{currentDate}</div>
                 </div>
 
-                {/* DIREITA */}
                 <div className="content-right">
 
                     <button className="play-button" onClick={handlePlayPause}>
