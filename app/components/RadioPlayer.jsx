@@ -1,5 +1,3 @@
-// RadioPlayer.jsx — versão final 100% corrigida, responsiva, dark automático e com horário de Chicago
-
 'use client';
 
 import { useState, useEffect, useRef, useReducer, useCallback } from 'react';
@@ -11,13 +9,11 @@ import {
   SpeakerXMarkIcon,
 } from '@heroicons/react/24/solid';
 
-// Reducer de tema com preferência automática do sistema
+// Reducer de tema (dark automático)
 function themeReducer(state, action) {
   switch (action.type) {
     case 'SET_SYSTEM_THEME':
       return { ...state, darkMode: action.value };
-    case 'TOGGLE_THEME':
-      return { ...state, darkMode: !state.darkMode };
     default:
       return state;
   }
@@ -44,7 +40,7 @@ export default function RadioPlayer() {
   const STREAM_LOGO_URL = "/logo-praisefm.webp";
   const MAX_HISTORY = 6;
 
-  // Detecta o tema do sistema automaticamente
+  // Detecta tema automático
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
@@ -52,13 +48,8 @@ export default function RadioPlayer() {
       dispatch({ type: 'SET_SYSTEM_THEME', value: mq.matches });
     };
     applyTheme();
-    // older browsers: addEventListener may not exist on MediaQueryList
-    if (mq.addEventListener) mq.addEventListener('change', applyTheme);
-    else mq.addListener(applyTheme);
-    return () => {
-      if (mq.removeEventListener) mq.removeEventListener('change', applyTheme);
-      else mq.removeListener(applyTheme);
-    };
+    mq.addEventListener('change', applyTheme);
+    return () => mq.removeEventListener('change', applyTheme);
   }, []);
 
   const PROGRAM_COVERS = {
@@ -98,13 +89,14 @@ export default function RadioPlayer() {
     });
   };
 
-  // Dados do player e metadata
+  // Player + metadata
   useEffect(() => {
     const audio = playerRef.current;
     if (!audio) return;
     audio.src = STREAM_URL;
     audio.volume = volume;
 
+    // Relógio CHICAGO
     const clock = setInterval(() => {
       const now = new Date();
 
@@ -127,16 +119,17 @@ export default function RadioPlayer() {
       );
     }, 1000);
 
+    // Metadata via SSE
     const sse = new EventSource(NOWPLAYING_API);
-    sse.onmessage = async e => {
+    sse.onmessage = async (e) => {
       try {
         const data = JSON.parse(e.data);
         let raw = (data.streamTitle || "").trim();
         if (!raw) raw = "Praise FM U.S. - Spot";
 
         const parts = raw.split(" - ");
-        const artist = parts[0] || '';
-        const song = parts.slice(1).join(" ") || '';
+        const artist = parts[0] || "";
+        const song = parts.slice(1).join(" ") || "";
 
         setCurrentTitle(isCommercial(song) ? "Commercial Break" : `${artist} - ${song}`);
 
@@ -145,21 +138,17 @@ export default function RadioPlayer() {
         addToHistory(song, artist, cover);
 
         setStatus(isCommercial(song) ? "Commercial Break" : `LIVE • ${artist} - ${song}`);
+
       } catch (err) {
-        console.error('SSE parse error', err);
+        console.error("SSE parse error", err);
         setError("Metadata error");
         setCoverUrl(STREAM_LOGO_URL);
       }
     };
 
-    sse.onerror = (err) => {
-      console.error('SSE error', err);
-      setError('SSE connection error');
-    };
-
     return () => {
       clearInterval(clock);
-      try { sse.close(); } catch (e) {}
+      sse.close();
     };
   }, [fetchCoverArt, volume]);
 
@@ -167,49 +156,52 @@ export default function RadioPlayer() {
     const p = playerRef.current;
     if (!p) return;
     try {
-      if (!playing) await p.play(); else p.pause();
+      if (!playing) await p.play();
+      else p.pause();
       setPlaying(!playing);
     } catch (err) {
-      console.error('Play error', err);
-      setError('Playback failed. Check browser autoplay settings.');
+      console.error("Playback error", err);
+      setError("Playback failed. Check browser autoplay settings.");
     }
   };
 
   return (
-    <div className={`page ${darkMode ? 'dark' : ''} min-h-screen transition-colors duration-500 bg-gray-100 dark:bg-gray-900`}>
-      <style jsx global>{`
-        @import 'https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css';
-      `}</style>
+    <div className={`page ${darkMode ? 'dark' : ''} min-h-screen bg-gray-100 dark:bg-gray-900 transition-colors duration-500`}>
 
-      <div className="container mx-auto max-w-6xl p-10 rounded-2xl shadow-xl bg-white dark:bg-gray-800 transition-all duration-500 mt-6">
-        <div className="flex flex-col items-center md:flex-row md:items-start md:gap-8">
+      <div className="container mx-auto max-w-6xl p-10 rounded-2xl shadow-xl bg-white dark:bg-gray-800 mt-6 transition-all duration-500">
+        <div className="flex flex-col md:flex-row md:gap-8">
 
           {/* LEFT: Cover + info */}
           <div className="w-full md:w-1/2 flex flex-col items-center md:items-start">
             <motion.div
               className="w-64 h-64 md:w-80 md:h-80 xl:w-96 xl:h-96 rounded-2xl shadow-xl overflow-hidden mb-6"
-              initial={{ opacity: 0, scale: 0.95 }}
+              initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.5, ease: 'easeOut' }}
             >
-              <img src={coverUrl || STREAM_LOGO_URL} alt="Cover" className="w-full h-full object-cover" />
+              <img src={coverUrl || STREAM_LOGO_URL} className="w-full h-full object-cover" />
             </motion.div>
 
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }} className="w-full px-2 md:px-0">
-              <h2 className="text-2xl md:text-4xl font-bold text-gray-900 dark:text-white">{currentTitle}</h2>
-              <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">{currentDate} — <span className="font-medium">Chicago time</span></p>
-              <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mt-1">LIVE • {currentTime}</p>
+            <h2 className="text-2xl md:text-4xl font-bold text-gray-900 dark:text-white">
+              {currentTitle}
+            </h2>
 
-              {error && <p className="text-sm text-red-500 mt-2">{error}</p>}
-            </motion.div>
+            <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+              {currentDate} — <span className="font-medium">Chicago time</span>
+            </p>
+
+            <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mt-1">
+              LIVE • {currentTime}
+            </p>
+
+            {error && <p className="text-sm text-red-500 mt-2">{error}</p>}
           </div>
 
-          {/* RIGHT: Controls + history */}
+          {/* RIGHT: controles */}
           <div className="w-full md:w-1/2">
             <motion.button
               className="w-full mt-2 py-3 bg-gray-800 dark:bg-gray-700 text-white rounded-xl flex items-center justify-center"
               onClick={handlePlayPause}
-              whileTap={{ scale: 0.96 }}
+              whileTap={{ scale: 0.95 }}
             >
               {playing ? <PauseIcon className="w-8 h-8" /> : <PlayIcon className="w-8 h-8" />}
             </motion.button>
@@ -230,25 +222,49 @@ export default function RadioPlayer() {
               </div>
             </div>
 
+            {/* Recent played */}
             <div className="mt-6">
               <h3 className="text-md font-semibold mb-2">Recently Played</h3>
               <div className="space-y-2 max-h-52 overflow-y-auto pr-2">
-                {history.length === 0 && <div className="text-sm text-gray-500">No recent tracks yet.</div>}
+                {history.length === 0 && (
+                  <div className="text-sm text-gray-500">No recent tracks yet.</div>
+                )}
+
                 {history.map((item) => (
-                  <motion.div key={item.key} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700" initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }}>
-                    <img src={item.coverUrl} alt="cover" className="w-12 h-12 rounded object-cover" />
+                  <motion.div
+                    key={item.key}
+                    className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+                    initial={{ opacity: 0, x: 12 }}
+                    animate={{ opacity: 1, x: 0 }}
+                  >
+                    <img src={item.coverUrl} className="w-12 h-12 rounded object-cover" />
+
                     <div className="flex-1">
                       <div className="font-medium text-sm">{item.song}</div>
                       <div className="text-xs text-gray-600 dark:text-gray-300">{item.artist}</div>
                     </div>
-                    <button onClick={() => window.open(`https://www.youtube.com/results?search_query=${encodeURIComponent(item.artist + ' ' + item.song)}`, '_blank')} className="text-sm text-blue-600">Play</button>
+
+                    <button
+                      onClick={() =>
+                        window.open(
+                          `https://www.youtube.com/results?search_query=${encodeURIComponent(
+                            item.artist + " " + item.song
+                          )}`,
+                          "_blank"
+                        )
+                      }
+                      className="text-sm text-blue-600"
+                    >
+                      Play
+                    </button>
                   </motion.div>
                 ))}
               </div>
             </div>
 
-            <div className="mt-6 text-sm text-gray-600 dark:text-gray-300">{status}</div>
-
+            <div className="mt-6 text-sm text-gray-600 dark:text-gray-300">
+              {status}
+            </div>
           </div>
 
           <audio ref={playerRef} preload="auto" />
