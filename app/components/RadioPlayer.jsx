@@ -114,7 +114,7 @@ export default function RadioPlayer() {
                 setStatus('LIVE • Now Playing');
                 console.log("Autoplay iniciado com sucesso!");
             } catch (err) {
-                console.warn('Autoplay blocked — user interaction required');
+                console.warn('Autoplay bloqueado — interação do usuário necessária');
                 setStatus('Interaja com a página para ouvir.');
             }
         };
