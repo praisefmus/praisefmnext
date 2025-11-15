@@ -27,13 +27,45 @@ export default function RadioPlayer() {
         return ["spot", "commercial", "publicidade", "advert", "break", "jingle", "intervalo"].some(w => t.includes(w));
     };
 
+    // -------------------------------
+    // FILTRO FORTE PARA CAPAS
+    // -------------------------------
+    const isBadCover = (artist, song, imageUrl) => {
+        if (!imageUrl) return true;
+
+        const badWords = [
+            "soundtrack",
+            "motion picture",
+            "original score",
+            "ost",
+            "movie",
+            "film",
+            "theme",
+            "tv",
+        ];
+
+        const urlLower = imageUrl.toLowerCase();
+
+        if (badWords.some(w => urlLower.includes(w))) return true;
+
+        if (imageUrl.includes("600x600") || imageUrl.includes("500")) return false;
+
+        return true;
+    };
+
     const fetchAppleMusicCover = async (artist, song) => {
         try {
             const url = `https://itunes.apple.com/search?term=${encodeURIComponent(artist + " " + song)}&limit=1`;
             const res = await fetch(url);
             const data = await res.json();
+
             if (data.results?.length > 0) {
-                return data.results[0].artworkUrl100.replace("100x100bb", "600x600bb");
+                let art = data.results[0].artworkUrl100;
+                const full = art.replace("100x100bb", "600x600bb");
+
+                if (!isBadCover(artist, song, full)) {
+                    return full;
+                }
             }
         } catch (_) { }
         return null;
@@ -45,12 +77,15 @@ export default function RadioPlayer() {
                 `https://ws.audioscrobbler.com/2.0/?method=track.getInfo&api_key=${LASTFM_KEY}&artist=${encodeURIComponent(artist)}&track=${encodeURIComponent(song)}&format=json`
             );
             const data = await res.json();
-            const img = data?.track?.album?.image;
-            if (img) {
-                const pick = img.find(i => i.size === "extralarge") || img[img.length - 1];
-                const url = pick?.["#text"] ?? "";
-                if (url && !url.includes("noimage") && !url.endsWith(".gif")) return url;
-            }
+
+            const imgs = data?.track?.album?.image;
+            if (!imgs) return null;
+
+            const cover = imgs.find(i => i.size === "extralarge") || imgs[imgs.length - 1];
+            const url = cover?.["#text"] ?? "";
+
+            if (!isBadCover(artist, song, url)) return url;
+
         } catch (_) { }
         return null;
     };
@@ -59,7 +94,7 @@ export default function RadioPlayer() {
         const a = artist.toLowerCase();
         const s = song.toLowerCase();
 
-        if (isCommercial(song) || a.includes("praise fm") || s.includes("live") || s === "spot") {
+        if (isCommercial(song) || a.includes("praise fm") || s === "spot") {
             return STREAM_LOGO_URL;
         }
 
@@ -73,7 +108,7 @@ export default function RadioPlayer() {
     };
 
     const addToHistory = (song, artist, cover) => {
-        if (isCommercial(song)) return; // não adiciona comerciais no histórico
+        if (isCommercial(song)) return;
 
         setHistory(prev => {
             const key = `${artist} - ${song}`;
@@ -142,6 +177,7 @@ export default function RadioPlayer() {
 
     return (
         <div className="wrapper">
+
             <style jsx>{`
                 .wrapper {
                     min-height: 100vh;
@@ -236,6 +272,61 @@ export default function RadioPlayer() {
                     flex: 1;
                 }
 
+                /* Histórico OPÇÃO A — organizado à esquerda no celular */
+                .history-section {
+                    margin-top: 20px;
+                }
+
+                .history-title {
+                    font-size: 1.1rem;
+                    font-weight: 600;
+                    margin-bottom: 10px;
+                    text-align: left;
+                }
+
+                @media (max-width: 768px) {
+                    .history-title {
+                        text-align: center;
+                    }
+                }
+
+                .history-item {
+                    display: flex;
+                    align-items: center;
+                    gap: 12px;
+                    margin-bottom: 10px;
+                }
+
+                .history-img {
+                    width: 45px;
+                    height: 45px;
+                    border-radius: 5px;
+                    flex-shrink: 0;
+                }
+
+                .history-text {
+                    text-align: left;
+                }
+
+                @media (max-width: 768px) {
+                    .history-item {
+                        justify-content: center;
+                    }
+                    .history-text {
+                        text-align: left;
+                    }
+                }
+
+                .history-title-item {
+                    font-weight: 600;
+                    font-size: 0.95rem;
+                }
+
+                .history-artist {
+                    font-size: .8rem;
+                    color: #777;
+                }
+
                 .play-button {
                     width: 100%;
                     padding: 15px;
@@ -247,45 +338,6 @@ export default function RadioPlayer() {
                     font-size: 1.2rem;
                     font-weight: bold;
                     margin-bottom: 20px;
-                }
-
-                .history-section {
-                    margin-top: 15px;
-                }
-
-                .history-title {
-                    font-size: 1.1rem;
-                    font-weight: 600;
-                    margin-bottom: 10px;
-                }
-
-                .history-item {
-                    display: flex;
-                    align-items: center;
-                    gap: 12px;
-                    margin-bottom: 10px;
-                }
-
-                @media (max-width: 768px) {
-                    .history-item {
-                        justify-content: center;
-                    }
-                }
-
-                .history-img {
-                    width: 45px;
-                    height: 45px;
-                    border-radius: 5px;
-                }
-
-                .history-title-item {
-                    font-weight: 600;
-                    font-size: 0.95rem;
-                }
-
-                .history-artist {
-                    font-size: .8rem;
-                    color: #777;
                 }
 
                 .status {
@@ -309,7 +361,6 @@ export default function RadioPlayer() {
                     </div>
 
                     <div className="live-indicator">LIVE • {currentTime}</div>
-
                     <div className="show-title">{currentTitle}</div>
                     <div className="show-date">{currentDate}</div>
                 </div>
@@ -328,10 +379,9 @@ export default function RadioPlayer() {
                                 <img
                                     src={item.coverUrl || STREAM_LOGO_URL}
                                     className="history-img"
-                                    onError={(e) => (e.target.src = STREAM_LOGO_URL)}
                                 />
 
-                                <div>
+                                <div className="history-text">
                                     <div className="history-title-item">{item.song}</div>
                                     <div className="history-artist">{item.artist}</div>
                                 </div>
