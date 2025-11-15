@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useReducer, useCallback } from 'react';
 import { motion } from 'framer-motion'; // For animations
-import { PlayIcon, PauseIcon, ShareIcon, VolumeUpIcon, VolumeOffIcon } from '@heroicons/react/solid'; // Icons
+import { PlayIcon, PauseIcon, ShareIcon, VolumeUpIcon, VolumeOffIcon } from '@heroicons/react/24/solid';
 
 // Theme reducer for dark/light mode
 const themeReducer = (state, action) => {
