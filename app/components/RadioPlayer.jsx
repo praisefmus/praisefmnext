@@ -22,12 +22,14 @@ export default function RadioPlayer() {
     const STREAM_LOGO_URL = "/image/logo-praisefm.webp";
     const MAX_HISTORY = 5;
 
+    // Detecta comerciais
     const isCommercial = (title) => {
         const keywords = ['commercial','advertisement','sponsor','spot','publicidade','intervalo','break','jingle','comercial','anúncio','patrocínio'];
         const lower = title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
         return keywords.some(k => lower.includes(k));
     };
 
+    // Garante fallback para o logo
     const getSafeCover = (url) => (!url || url.includes('noimage') || url.includes('last.fm')) ? STREAM_LOGO_URL : url;
 
     const fetchCoverArt = async (artist, song) => {
@@ -119,7 +121,7 @@ export default function RadioPlayer() {
                 setIsFavorited(favorites.includes(key));
                 addToHistory(song, artist, newCover);
 
-                // Apenas altera o status se for comercial, mantendo o título real
+                // Status comercial ou música real
                 setStatus(spot ? '📢 Commercial Break' : `LIVE • Now Playing: ${artist} - ${song}`);
 
             } catch (err) {
@@ -205,7 +207,7 @@ export default function RadioPlayer() {
                             return (
                                 <div key={index} className="history-item">
                                     <div className="history-img">
-                                        <img src={item.coverUrl} className={isLogo?'fallback-logo':''} onError={(e)=>{e.currentTarget.src=STREAM_LOGO_URL;}}/>
+                                        <img src={getSafeCover(item.coverUrl)} className={isLogo?'fallback-logo':''} onError={(e)=>{e.currentTarget.src=STREAM_LOGO_URL;}}/>
                                     </div>
                                     <div className="history-text">
                                         <div className="history-title-item">{item.song}
