@@ -1,477 +1,578 @@
+// app/components/RadioPlayer.jsx
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 export default function RadioPlayer() {
-    // Referências para elementos DOM
-    const playerRef = useRef(null);
-    const playBtnRef = useRef(null);
-    const volumeSliderRef = useRef(null);
-    const statusTextRef = useRef(null);
-    const coverImgRef = useRef(null);
-    const currentTitleElRef = useRef(null);
-    const currentDateElRef = useRef(null);
-    const currentTimeElRef = useRef(null);
-    const historyListRef = useRef(null);
-    const favoriteBtnRef = useRef(null);
-    const showImageElRef = useRef(null);
+  // ---------- Config ----------
+  const STREAM_URL = 'https://stream.zeno.fm/hvwifp8ezc6tv';
+  const NOWPLAYING_API = 'https://api.zeno.fm/mounts/metadata/subscribe/hvwifp8ezc6tv';
+  const LASTFM_API_KEY = '7744c8f90ee053fc761e0e23bfa00b89';
+  const STREAM_LOGO_URL = '/logo-praisefm.webp'; // uses /public/logo-praisefm.webp on Vercel
+  const LOGO_FALLBACK_SIZE = 260; // px
+  const MAX_HISTORY = 6;
 
-    // Estados
-    const [playing, setPlaying] = useState(false);
-    const [currentTrackKey, setCurrentTrackKey] = useState('');
-    const [history, setHistory] = useState([]);
-    const [currentSong, setCurrentSong] = useState('');
-    const [currentArtist, setCurrentArtist] = useState('');
-    const [volume, setVolume] = useState(0.7);
+  // ---------- State & refs ----------
+  const audioRef = useRef(null);
+  const [playing, setPlaying] = useState(false);
+  const [volume, setVolume] = useState(0.7);
+  const [status, setStatus] = useState('Connecting...');
+  const [currentTitle, setCurrentTitle] = useState('Loading...');
+  const [currentArtist, setCurrentArtist] = useState('');
+  const [currentSong, setCurrentSong] = useState('');
+  const [coverUrl, setCoverUrl] = useState(STREAM_LOGO_URL);
+  const [history, setHistory] = useState([]);
+  const [favorites, setFavorites] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('favorites') || '[]');
+    } catch {
+      return [];
+    }
+  });
 
-    // Configurações
-    const STREAM_URL = 'https://stream.zeno.fm/hvwifp8ezc6tv';
-    const NOWPLAYING_API = 'https://api.zeno.fm/mounts/metadata/subscribe/hvwifp8ezc6tv';
-    const LASTFM_API_KEY = '7744c8f90ee053fc761e0e23bfa00b89';
-    const STREAM_LOGO_URL = 'https://raw.githubusercontent.com/praisefmus/praisefm/main/image/LOGOPNG%20PRAISEFMUS.png';
-    const MAX_HISTORY = 5;
+  // for image fade/zoom key
+  const [coverKey, setCoverKey] = useState(0);
 
-    // Função para adicionar música ao histórico
-    const addToHistory = (song, artist, coverUrl = '') => {
-        const key = `${artist} - ${song}`;
-        if (key === currentTrackKey) return;
+  // ---------- Helpers ----------
+  const isCommercial = (title = '') => {
+    if (!title) return false;
+    const keywords = [
+      'commercial', 'advertisement', 'sponsor', 'spot',
+      'publicidade', 'intervalo', 'break', 'jingle', 'comercial', 'anuncio', 'patrocinio'
+    ];
+    const lower = title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    return keywords.some(k => lower.includes(k));
+  };
 
-        setCurrentTrackKey(key);
+  const isValidCoverUrl = (url) => {
+    return !!url && typeof url === 'string' && url.trim() !== '' && url.length > 10;
+  };
 
-        setHistory(prevHistory => {
-            let newHistory = [...prevHistory];
-            const existingIndex = newHistory.findIndex(item => item.song === song && item.artist === artist);
-            if (existingIndex !== -1) {
-                newHistory.splice(existingIndex, 1);
-            }
-            newHistory.unshift({ song, artist, coverUrl });
-            if (newHistory.length > MAX_HISTORY) newHistory = newHistory.slice(0, MAX_HISTORY);
-            return newHistory;
-        });
-    };
+  const fetchCoverArt = async (artist, song) => {
+    // don't ask last.fm for commercials or blanks
+    if (!artist || !song || isCommercial(song) || artist === 'Praise FM U.S.' ) return STREAM_LOGO_URL;
+    try {
+      const res = await fetch(
+        `https://ws.audioscrobbler.com/2.0/?method=track.getInfo&api_key=${LASTFM_API_KEY}&artist=${encodeURIComponent(artist)}&track=${encodeURIComponent(song)}&format=json`
+      );
+      const data = await res.json();
+      const url = data?.track?.album?.image?.slice?.(-1)?.[0]?.['#text'] || '';
+      return isValidCoverUrl(url) ? url : STREAM_LOGO_URL;
+    } catch (e) {
+      console.warn('Last.fm fetch failed', e);
+      return STREAM_LOGO_URL;
+    }
+  };
 
-    // Função para renderizar o histórico
-    const renderHistory = () => {
-        if (!historyListRef.current) return;
+  const pushToHistory = (song, artist, cover) => {
+    const key = `${artist} - ${song}`;
+    setHistory(prev => {
+      const filtered = prev.filter(i => i.key !== key);
+      const next = [{ key, song, artist, cover }, ...filtered];
+      return next.slice(0, MAX_HISTORY);
+    });
+  };
 
-        if (history.length === 0) {
-            historyListRef.current.innerHTML = '<div style="text-align:center;color:#666;padding:16px;">No songs yet...</div>';
-            return;
+  const toggleFavorite = (key) => {
+    setFavorites(prev => {
+      let copy = [...prev];
+      const idx = copy.indexOf(key);
+      if (idx === -1) copy.push(key);
+      else copy.splice(idx, 1);
+      localStorage.setItem('favorites', JSON.stringify(copy));
+      return copy;
+    });
+  };
+
+  // ---------- Image preload + validation ----------
+  const tryUseCover = async (urlOrLogo) => {
+    // if incoming url is invalid -> use logo
+    if (!isValidCoverUrl(urlOrLogo) || urlOrLogo === STREAM_LOGO_URL) {
+      setCoverUrl(STREAM_LOGO_URL);
+      setCoverKey(k => k + 1);
+      return;
+    }
+    // attempt to load image to ensure it resolves (onError fallback)
+    return new Promise(resolve => {
+      const img = new Image();
+      let resolved = false;
+      img.onload = () => {
+        if (!resolved) {
+          resolved = true;
+          setCoverUrl(urlOrLogo);
+          setCoverKey(k => k + 1);
+          resolve(true);
+        }
+      };
+      img.onerror = () => {
+        if (!resolved) {
+          resolved = true;
+          setCoverUrl(STREAM_LOGO_URL);
+          setCoverKey(k => k + 1);
+          resolve(false);
+        }
+      };
+      img.src = urlOrLogo;
+      // safety timeout
+      setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          setCoverUrl(STREAM_LOGO_URL);
+          setCoverKey(k => k + 1);
+          resolve(false);
+        }
+      }, 4000);
+    });
+  };
+
+  // ---------- Now Playing SSE ----------
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('EventSource' in window)) {
+      setStatus('SSE not supported.');
+      return;
+    }
+
+    let es;
+    try {
+      es = new EventSource(NOWPLAYING_API);
+    } catch (e) {
+      console.warn('EventSource failed to open:', e);
+      setStatus('Connection failed.');
+      return;
+    }
+
+    es.onmessage = async (evt) => {
+      try {
+        const data = JSON.parse(evt.data);
+        let title = (data.streamTitle || '').trim();
+        if (!title || title.length < 2) title = 'Praise FM U.S. - Spot';
+        const commercial = isCommercial(title);
+        if (commercial) title = 'Praise FM U.S. - Spot';
+
+        // split "Artist - Song" (some streams use that)
+        const parts = title.split(' - ').map(p => p.trim()).filter(Boolean);
+        const artist = parts[0] || 'Praise FM U.S.';
+        const song = parts.length > 1 ? parts.slice(1).join(' - ') : (parts[0] || 'Live');
+
+        setCurrentArtist(artist);
+        setCurrentSong(song);
+        setCurrentTitle(`${artist} - ${song}`);
+
+        if (commercial) {
+          setStatus('📢 Commercial');
+          await tryUseCover(STREAM_LOGO_URL);
+          pushToHistory(song, artist, STREAM_LOGO_URL);
+          return;
         }
 
-        // Constrói o HTML do histórico usando strings
-        let historyHTML = '';
-        history.forEach(item => {
-            const key = `${item.artist} - ${item.song}`;
-            const isFavorited = JSON.parse(localStorage.getItem('favorites') || '[]').includes(key) ? '★' : '☆';
-            // Corrigido: Agora usando strings HTML corretamente dentro de innerHTML
-            historyHTML += `
-                <div class="history-item">
-                    <div class="history-img">
-                        ${item.coverUrl && item.coverUrl !== STREAM_LOGO_URL ? `<img src="${item.coverUrl}" alt="${item.artist} - ${item.song}">` : `<img src="${STREAM_LOGO_URL}" alt="Praise FM U.S. Logo" />`}
-                    </div>
-                    <div class="history-text">
-                        <div class="history-title-item">
-                            ${item.song}
-                            <span class="favorite-history" data-key="${key}" role="button" tabindex="0" aria-label="Favorite ${item.artist} - ${item.song}">${isFavorited}</span>
-                        </div>
-                        <div class="history-artist">${item.artist}</div>
-                    </div>
-                </div>
-            `;
-        });
-
-        historyListRef.current.innerHTML = historyHTML;
-
-        // Adiciona eventos aos botões de favoritar do histórico
-        document.querySelectorAll('.favorite-history').forEach(el => {
-            const handleClick = (e) => {
-                e.stopPropagation();
-                toggleFavorite(el.dataset.key, el);
-            };
-            const handleKeyDown = (e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    toggleFavorite(el.dataset.key, el);
-                }
-            };
-
-            // Limpa eventos antigos para evitar duplicação
-            el.removeEventListener('click', handleClick);
-            el.removeEventListener('keydown', handleKeyDown);
-            el.addEventListener('click', handleClick);
-            el.addEventListener('keydown', handleKeyDown);
-        });
+        // otherwise try to get cover from last.fm
+        const cover = await fetchCoverArt(artist, song);
+        await tryUseCover(cover || STREAM_LOGO_URL);
+        pushToHistory(song, artist, cover || STREAM_LOGO_URL);
+        setStatus('LIVE • Now Playing');
+      } catch (err) {
+        console.warn('SSE parse error', err);
+        setCurrentTitle('Praise FM U.S. - Live');
+        setCurrentArtist('Praise FM U.S.');
+        setCurrentSong('Live');
+        setStatus('LIVE');
+        await tryUseCover(STREAM_LOGO_URL);
+      }
     };
 
-    // Função para alternar favorito
-    const toggleFavorite = (key, element = null) => {
-        let favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
-        const index = favorites.indexOf(key);
-        if (index === -1) {
-            favorites.push(key);
-        } else {
-            favorites.splice(index, 1);
-        }
-        localStorage.setItem('favorites', JSON.stringify(favorites));
-
-        if (key === `${currentArtist} - ${currentSong}`) {
-            if (favoriteBtnRef.current) {
-                favoriteBtnRef.current.textContent = index === -1 ? '★' : '☆';
-                favoriteBtnRef.current.classList.toggle('favorited', index === -1);
-            }
-            if (showImageElRef.current) {
-                showImageElRef.current.classList.toggle('favorited-cover', index === -1);
-            }
-        }
-
-        if (element) {
-            element.textContent = index === -1 ? '★' : '☆';
-        }
-        updateFavoriteButton();
-    };
-
-    // Função para atualizar o botão de favorito principal
-    const updateFavoriteButton = () => {
-        if (!currentSong || !currentArtist || !favoriteBtnRef.current || !showImageElRef.current) return;
-        const key = `${currentArtist} - ${currentSong}`;
-        const favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
-        const isFavorited = favorites.includes(key);
-        favoriteBtnRef.current.textContent = isFavorited ? '★' : '☆';
-        favoriteBtnRef.current.classList.toggle('favorited', isFavorited);
-        showImageElRef.current.classList.toggle('favorited-cover', isFavorited);
-    };
-
-    // Função para verificar se é um comercial
-    const isCommercial = (title) => {
-        const keywords = [
-            'commercial', 'advertisement', 'sponsor', 'spot', 'publicidade', 'intervalo', 'break', 'jingle', 'comercial', 'anúncio', 'patrocínio'
-        ];
-        const lower = title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-        return keywords.some(k => lower.includes(k));
-    };
-
-    // Função para buscar capa do álbum via Last.fm
-    const fetchCoverArt = async (artist, song) => {
-        if (!artist || !song || isCommercial(song) || artist === 'Praise FM U.S.' || song === 'Live') {
-            return STREAM_LOGO_URL;
-        }
+    es.onerror = () => {
+      setStatus('Reconnecting...');
+      // try reconnect logic: close + reopen after delay
+      try {
+        es.close();
+      } catch {}
+      setTimeout(() => {
+        // re-run effect: easiest is to reload page or create new EventSource
+        // but keep it simple: create new EventSource
         try {
-            const res = await fetch(
-                `https://ws.audioscrobbler.com/2.0/?method=track.getInfo&api_key=${LASTFM_API_KEY}&artist=${encodeURIComponent(artist)}&track=${encodeURIComponent(song)}&format=json`
-            );
-            const data = await res.json();
-            if (data.track?.album?.image) {
-                const images = data.track.album.image;
-                const cover = images.find(img => img.size === 'extralarge') || images[images.length - 1];
-                return cover['#text'] || STREAM_LOGO_URL;
-            }
-            return STREAM_LOGO_URL;
-        } catch (err) {
-            console.warn('Failed to fetch cover:', err);
-            return STREAM_LOGO_URL;
+          // create a fresh one
+          const newEs = new EventSource(NOWPLAYING_API);
+          es = newEs;
+        } catch {}
+      }, 10000);
+    };
+
+    return () => {
+      try { es.close(); } catch {}
+    };
+  }, []);
+
+  // ---------- Audio autoplay & setup ----------
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.crossOrigin = 'anonymous';
+    audio.src = STREAM_URL;
+    audio.volume = volume;
+
+    // attempt autoplay once
+    audio.play()
+      .then(() => {
+        setPlaying(true);
+        setStatus('LIVE • Now Playing');
+      })
+      .catch(() => {
+        setPlaying(false);
+        setStatus('Click play to listen');
+      });
+
+    return () => {
+      try { audio.pause(); } catch {}
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.volume = volume;
+  }, [volume]);
+
+  // ---------- UI Handlers ----------
+  const handlePlayPause = async () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (playing) {
+      audio.pause();
+      setPlaying(false);
+      setStatus('Paused');
+    } else {
+      try {
+        await audio.play();
+        setPlaying(true);
+        setStatus('LIVE • Now Playing');
+      } catch {
+        setStatus('Failed to play — user interaction required');
+      }
+    }
+  };
+
+  const handleVolume = (e) => {
+    const v = parseFloat(e.target.value);
+    setVolume(v);
+    if (audioRef.current) audioRef.current.volume = v;
+    setStatus(`Volume: ${Math.round(v * 100)}%`);
+  };
+
+  const toggleFavForCurrent = () => {
+    const key = `${currentArtist} - ${currentSong}`;
+    toggleFavorite(key);
+  };
+
+  // ---------- Persist favorites to localStorage ----------
+  useEffect(() => {
+    try {
+      localStorage.setItem('favorites', JSON.stringify(favorites));
+    } catch {}
+  }, [favorites]);
+
+  // ---------- Utility render helpers ----------
+  const isFavorited = (key) => favorites.includes(key);
+
+  // ---------- Mark cover elements loaded class for fade ----------
+  const coverImgRef = useRef(null);
+  useEffect(() => {
+    // whenever coverKey changes, we remove "loaded" class and wait for onLoad to add it back
+    const el = coverImgRef.current;
+    if (!el) return;
+    el.classList.remove('loaded');
+    // small timeout to allow transition reset
+    const t = setTimeout(() => {
+      // nothing here — onLoad handler will add 'loaded'
+    }, 50);
+    return () => clearTimeout(t);
+  }, [coverKey]);
+
+  // ---------- JSX ----------
+  return (
+    <>
+      <style jsx>{`
+        :root{
+          --bg:#f3f5f7;
+          --card:#fff;
+          --muted:#6b7280;
+          --accent:#ff527c;
+          --shadow: 0 12px 30px rgba(15,23,42,0.06);
         }
-    };
 
-    // Função para verificar se a imagem é inválida
-    const isInvalidCover = (imageUrl) => {
-        return new Promise((resolve) => {
-            const img = new Image();
-            img.onload = () => resolve(false);
-            img.onerror = () => resolve(true);
-            img.src = imageUrl;
-            setTimeout(() => resolve(true), 5000);
-        });
-    };
-
-    // Função para alternar exibição da capa
-    const toggleCoverDisplay = (showImage = true, imageUrl = '') => {
-        if (!coverImgRef.current) return;
-        if (showImage && imageUrl && imageUrl !== STREAM_LOGO_URL) {
-            coverImgRef.current.src = imageUrl;
-        } else {
-            coverImgRef.current.src = STREAM_LOGO_URL;
+        .player-wrap{
+          max-width:1100px;
+          margin:40px auto;
+          padding:28px;
+          background:var(--card);
+          border-radius:18px;
+          box-shadow:var(--shadow);
+          display:flex;
+          flex-direction:column;
+          gap:22px;
         }
-    };
 
-    // Função para configurar o SSE do Now Playing
-    const setupNowPlaying = () => {
-        if (typeof EventSource !== 'undefined') {
-            const eventSource = new EventSource(NOWPLAYING_API);
+        @media(min-width:900px){
+          .player-wrap{flex-direction:row; align-items:flex-start; padding:40px; gap:36px;}
+        }
 
-            eventSource.onmessage = async (event) => {
-                try {
-                    const data = JSON.parse(event.data);
-                    let streamTitle = (data.streamTitle || '').trim() || 'Unknown Song';
-                    streamTitle = streamTitle.replace(/[^\p{L}\p{N}\s\-–—.,:;!?'"()&@#$%*+=/\\|<>[\]{}~`^_]/gu, ' ').replace(/\s+/g, ' ').trim();
+        .left {
+          flex:1;
+          display:flex;
+          flex-direction:column;
+          gap:18px;
+          align-items:center;
+          text-align:center;
+        }
 
-                    if (!streamTitle || streamTitle.length < 3) {
-                        streamTitle = 'Praise FM U.S. - Spot';
-                    }
+        @media(min-width:900px){
+          .left{align-items:flex-start;text-align:left;}
+        }
 
-                    const isSpot = isCommercial(streamTitle);
-                    if (isSpot) {
-                        streamTitle = 'Praise FM U.S. - Spot';
-                    }
+        .station-title{
+          font-size:1.5rem;
+          font-weight:800;
+          color:var(--accent);
+        }
 
-                    const parts = streamTitle.split(' - ').map(p => p.trim()).filter(Boolean);
-                    const artist = parts[0] || 'Praise FM U.S.';
-                    const song = parts.length > 1 ? parts.slice(1).join(' - ') : streamTitle;
+        .station-sub{
+          color:var(--muted);
+          margin-top:4px;
+          font-size:0.95rem;
+        }
 
-                    setCurrentSong(song);
-                    setCurrentArtist(artist);
+        .cover-wrap{
+          width:260px;
+          height:260px;
+          border-radius:50%;
+          overflow:hidden;
+          margin:8px 0 0;
+          box-shadow: 0 10px 30px rgba(20,20,20,0.06);
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          background:linear-gradient(180deg,#f2f2f2,#e9eaeb);
+          transition: transform .35s ease;
+        }
 
-                    if (currentTitleElRef.current) {
-                        currentTitleElRef.current.textContent = `${artist} - ${song}`;
-                        currentTitleElRef.current.title = `${artist} - ${song}`;
-                    }
+        .cover-img{
+          width:100%;
+          height:100%;
+          object-fit:cover;
+          display:block;
+          transform: scale(1);
+          opacity:0;
+          transition: opacity .65s ease, transform .65s ease;
+        }
 
-                    const coverUrl = await fetchCoverArt(artist, song);
+        .cover-img.loaded{
+          opacity:1;
+          transform: scale(1.03);
+        }
 
-                    if (!coverUrl || isSpot || coverUrl === STREAM_LOGO_URL) {
-                        toggleCoverDisplay(false);
-                        if (coverImgRef.current) coverImgRef.current.alt = isSpot ? 'Commercial' : `${artist} - ${song}`;
-                        addToHistory(song, artist, STREAM_LOGO_URL);
-                    } else {
-                        const isInvalid = await isInvalidCover(coverUrl);
-                        if (isInvalid) {
-                            toggleCoverDisplay(false);
-                            if (coverImgRef.current) coverImgRef.current.alt = `${artist} - ${song}`;
-                        } else {
-                            toggleCoverDisplay(true, coverUrl);
-                            if (coverImgRef.current) coverImgRef.current.alt = `${artist} - ${song}`;
-                        }
-                        addToHistory(song, artist, coverUrlRef.current ? coverUrlRef.current.src : STREAM_LOGO_URL);
-                    }
+        .info{
+          margin-top:6px;
+        }
 
-                    updateFavoriteButton();
+        .now-text{
+          color:var(--muted);
+          font-size:0.9rem;
+        }
 
-                    if (statusTextRef.current) {
-                        if (isSpot) {
-                            statusTextRef.current.textContent = '📢 Commercial Break';
-                        } else {
-                            statusTextRef.current.textContent = `LIVE • Now Playing: ${artist} - ${song}`;
-                        }
-                    }
-                } catch (err) {
-                    console.warn('Error parsing metadata', err);
-                    if (currentTitleElRef.current) currentTitleElRef.current.textContent = 'Praise FM U.S. - Live';
-                    toggleCoverDisplay(false);
-                    if (coverImgRef.current) coverImgRef.current.alt = 'Praise FM U.S. - Live';
-                    if (statusTextRef.current) statusTextRef.current.textContent = 'LIVE • Live';
+        .title{
+          font-weight:700;
+          font-size:1.05rem;
+          margin-top:6px;
+        }
+
+        /* Right pane */
+        .right {
+          width: 360px;
+          max-width: 100%;
+          display:flex;
+          flex-direction:column;
+          gap:14px;
+        }
+
+        .controls{
+          background:linear-gradient(90deg,var(--accent),#ff8a5b);
+          color:#fff;
+          border:none;
+          padding:14px 18px;
+          border-radius:999px;
+          font-weight:800;
+          font-size:1.05rem;
+          box-shadow: 0 8px 22px rgba(255,82,124,0.18);
+          cursor:pointer;
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          gap:8px;
+        }
+
+        .volume-row{
+          display:flex;
+          align-items:center;
+          gap:12px;
+          padding-top:8px;
+        }
+
+        .volume-row input[type="range"]{
+          flex:1;
+        }
+
+        .history{
+          background:#fbfbfb;
+          padding:12px;
+          border-radius:10px;
+        }
+
+        .history h4{margin:0 0 8px 0; font-size:0.95rem}
+        .hist-item{
+          display:flex;
+          gap:10px;
+          align-items:center;
+          padding:10px 6px;
+          border-bottom:1px solid #eee;
+        }
+        .hist-item:last-child{border-bottom:none;}
+        .hist-thumb{
+          width:46px; height:46px; border-radius:8px; overflow:hidden; background:#eee; flex-shrink:0;
+        }
+        .hist-thumb img{width:100%; height:100%; object-fit:cover; display:block; opacity:0; transition:opacity .6s}
+        .hist-thumb img.loaded{opacity:1}
+
+        .hist-meta{flex:1}
+        .hist-title{font-weight:600}
+        .hist-artist{font-size:0.85rem; color:var(--muted)}
+
+        .status{font-size:0.9rem; color:var(--muted); padding-top:8px}
+
+        /* favorite star */
+        .fav-btn{
+          background:transparent;
+          border:none;
+          font-size:1.25rem;
+          cursor:pointer;
+          color:#666;
+        }
+        .fav-btn.favorited{color:var(--accent)}
+
+      `}</style>
+
+      <div className="player-wrap" role="region" aria-label="Praise FM player">
+        {/* LEFT: cover + info */}
+        <div className="left">
+          <div style={{display:'flex', alignItems:'center', gap:12}}>
+            <div style={{flex:1}}>
+              <div className="station-title">Praise FM U.S.</div>
+              <div className="station-sub">Praise & Worship</div>
+            </div>
+
+            <button
+              className={`fav-btn ${isFavorited(`${currentArtist} - ${currentSong}`) ? 'favorited' : ''}`}
+              onClick={toggleFavForCurrent}
+              aria-label="Favorite current track"
+              title="Favorite current track"
+            >
+              {isFavorited(`${currentArtist} - ${currentSong}`) ? '★' : '☆'}
+            </button>
+          </div>
+
+          <div className="cover-wrap" aria-hidden>
+            <img
+              ref={coverImgRef}
+              key={coverKey}
+              src={coverUrl}
+              alt={currentTitle || 'Praise FM logo'}
+              className="cover-img"
+              onLoad={(e) => e.currentTarget.classList.add('loaded')}
+              onError={(e) => {
+                if (e.currentTarget.src !== STREAM_LOGO_URL) {
+                  e.currentTarget.src = STREAM_LOGO_URL;
                 }
-            };
+                e.currentTarget.classList.add('loaded');
+              }}
+              style={{
+                width: LOGO_FALLBACK_SIZE + 'px',
+                height: LOGO_FALLBACK_SIZE + 'px',
+                maxWidth: '100%',
+                maxHeight: '100%'
+              }}
+            />
+          </div>
 
-            eventSource.onerror = () => {
-                console.warn('EventSource failed, trying again in 15s...');
-                if (statusTextRef.current) statusTextRef.current.textContent = 'Connection failed. Retrying...';
-                setTimeout(setupNowPlaying, 15000);
-            };
-
-            // Cleanup
-            return () => {
-                eventSource.close();
-            };
-        } else {
-            console.error("EventSource is not supported by this browser.");
-            if (statusTextRef.current) statusTextRef.current.textContent = 'SSE not supported.';
-        }
-    };
-
-    // Função para atualizar o tempo
-    const updateTime = () => {
-        const now = new Date();
-        const optionsTime = {
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: true,
-            timeZone: 'America/Chicago'
-        };
-        const optionsDate = {
-            day: '2-digit',
-            month: 'short',
-            year: 'numeric',
-            timeZone: 'America/Chicago'
-        };
-        const timeFormatted = now.toLocaleTimeString('en-US', optionsTime);
-        const dateFormatted = now.toLocaleDateString('en-US', optionsDate);
-
-        if (currentTimeElRef.current) currentTimeElRef.current.textContent = timeFormatted;
-        if (currentDateElRef.current) currentDateElRef.current.textContent = dateFormatted;
-    };
-
-    // Efeito para inicializar o player e os listeners
-    useEffect(() => {
-        if (typeof window === 'undefined') return; // Garante execução apenas no client-side
-
-        const player = playerRef.current;
-        const playBtn = playBtnRef.current;
-        const volumeSlider = volumeSliderRef.current;
-        const statusText = statusTextRef.current;
-        const coverImg = coverImgRef.current;
-        const favoriteBtn = favoriteBtnRef.current;
-        const showImageEl = showImageElRef.current;
-
-        if (!player || !playBtn || !volumeSlider) {
-            console.error("Error: Essential player elements not found.");
-            if (statusText) statusText.textContent = "Error loading player. Please refresh.";
-            return;
-        }
-
-        // Inicializa o player
-        player.crossOrigin = 'anonymous';
-        player.src = STREAM_URL;
-        player.volume = volume;
-
-        // Garante que o logo U.S. é o primeiro a ser exibido
-        if (coverImg) {
-            coverImg.src = STREAM_LOGO_URL; // Correção: Define o logo inicial
-            coverImg.alt = 'Praise FM U.S. Logo';
-        }
-
-        // Função para atualizar o botão Play/Pause
-        const updatePlayButton = () => {
-            if (playBtn) {
-                playBtn.textContent = playing ? '⏸ Pause' : '▶ Play';
-                playBtn.setAttribute('aria-label', playing ? 'Pause radio' : 'Play radio');
-            }
-        };
-
-        // Tenta autoplay
-        const playAttempt = player.play();
-        if (playAttempt !== undefined) {
-            playAttempt.then(() => {
-                setPlaying(true);
-                updatePlayButton();
-                if (statusText) statusText.textContent = 'LIVE • Now Playing';
-            }).catch(err => {
-                console.warn('Autoplay blocked — user interaction required');
-                setPlaying(false);
-                updatePlayButton();
-                if (statusText) statusText.textContent = 'Click Play to listen.';
-            });
-        }
-
-        // Eventos dos botões e sliders
-        const handlePlayClick = () => {
-            if (playing) {
-                player.pause();
-                if (statusText) statusText.textContent = 'Paused';
-            } else {
-                player.play().then(() => {
-                    if (statusText) statusText.textContent = 'LIVE • Now Playing';
-                }).catch(err => {
-                    if (statusText) statusText.textContent = 'Failed to play — try again.';
-                    console.error('Play error:', err);
-                });
-            }
-            setPlaying(!playing);
-            updatePlayButton();
-        };
-
-        const handleVolumeChange = () => {
-            const newVolume = parseFloat(volumeSlider.value);
-            player.volume = newVolume;
-            setVolume(newVolume);
-            volumeSlider.setAttribute('aria-valuenow', newVolume);
-            if (statusText) statusText.textContent = `Volume: ${Math.round(newVolume * 100)}%`;
-        };
-
-        const handleFavoriteClick = () => {
-            if (!currentSong || !currentArtist) return;
-            const key = `${currentArtist} - ${currentSong}`;
-            toggleFavorite(key);
-        };
-
-        const handleFavoriteKeyDown = (e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                if (!currentSong || !currentArtist) return;
-                const key = `${currentArtist} - ${currentSong}`;
-                toggleFavorite(key);
-            }
-        };
-
-        if (playBtn) playBtn.addEventListener('click', handlePlayClick);
-        if (volumeSlider) volumeSlider.addEventListener('input', handleVolumeChange);
-        if (favoriteBtn) {
-            favoriteBtn.addEventListener('click', handleFavoriteClick);
-            favoriteBtn.addEventListener('keydown', handleFavoriteKeyDown);
-        }
-
-        // Configura o SSE
-        const cleanupSSE = setupNowPlaying();
-
-        // Configura o relógio
-        updateTime();
-        const intervalId = setInterval(updateTime, 1000);
-
-        // Cleanup ao desmontar o componente
-        return () => {
-            if (playBtn) playBtn.removeEventListener('click', handlePlayClick);
-            if (volumeSlider) volumeSlider.removeEventListener('input', handleVolumeChange);
-            if (favoriteBtn) {
-                favoriteBtn.removeEventListener('click', handleFavoriteClick);
-                favoriteBtn.removeEventListener('keydown', handleFavoriteKeyDown);
-            }
-            if (cleanupSSE) cleanupSSE();
-            clearInterval(intervalId);
-        };
-    }, [playing, volume, currentSong, currentArtist, currentTrackKey]);
-
-    // Efeito para renderizar o histórico sempre que ele mudar
-    useEffect(() => {
-        renderHistory();
-    }, [history]);
-
-    return (
-        <div className="container">
-            <div className="content-left">
-                <div className="header">
-                    <button className="favorite-btn" ref={favoriteBtnRef} title="Favorite this song" aria-label="Favorite this song">☆</button>
-                </div>
-                <div className="station-title">Praise FM U.S.</div>
-                <div className="station-desc">Praise & Worship</div>
-                <div className="show-image" ref={showImageElRef}>
-                    <img ref={coverImgRef} id="coverImg" src={STREAM_LOGO_URL} alt="Current song album cover" /> {/* Correção: src inicial */}
-                </div>
-                <div className="show-info">
-                    <div className="live-indicator">LIVE • <span ref={currentTimeElRef}>—</span></div>
-                    <div className="show-title">
-                        <span ref={currentTitleElRef}>Loading...</span>
-                    </div>
-                    <div className="show-date" ref={currentDateElRef}>—</div>
-                </div>
-            </div>
-            <div className="content-right">
-                <button className="play-button" ref={playBtnRef} aria-label="Play or pause radio">▶ Play</button>
-                <div className="volume-control">
-                    <label htmlFor="volumeSlider" className="sr-only">Adjust volume</label>
-                    <i className="fas fa-volume-up" aria-hidden="true"></i>
-                    <input
-                        type="range"
-                        className="volume-slider"
-                        ref={volumeSliderRef}
-                        id="volumeSlider"
-                        min="0"
-                        max="1"
-                        step="0.01"
-                        value={volume}
-                        onChange={(e) => setVolume(parseFloat(e.target.value))}
-                        aria-valuemin="0"
-                        aria-valuenow={volume}
-                        role="slider"
-                    />
-                </div>
-                <div className="history-section">
-                    <div className="history-title">Recently Played</div>
-                    <div className="history-list" ref={historyListRef}>
-                        <div style={{ textAlign: 'center', color: '#666', padding: '16px' }}>No songs yet...</div>
-                    </div>
-                </div>
-                <div className="status" ref={statusTextRef}>Connecting to stream... • Real-time updates</div>
-            </div>
-            <audio ref={playerRef} id="radioPlayer" preload="auto" aria-hidden="true"></audio>
+          <div className="info">
+            <div className="now-text">LIVE • <span>{new Date().toLocaleTimeString('en-US',{hour:'2-digit', minute:'2-digit', hour12:true})}</span></div>
+            <div className="title" aria-live="polite">{currentTitle}</div>
+          </div>
         </div>
-    );
+
+        {/* RIGHT: controls + history */}
+        <div className="right">
+          <button
+            className="controls"
+            onClick={handlePlayPause}
+            aria-pressed={playing}
+            aria-label={playing ? 'Pause stream' : 'Play stream'}
+          >
+            {playing ? '⏸ Pause' : '▶ Play'}
+          </button>
+
+          <div className="volume-row" aria-label="Volume control">
+            <span aria-hidden>🔊</span>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.01"
+              value={volume}
+              onChange={handleVolume}
+              aria-label="Volume"
+            />
+          </div>
+
+          <div className="history">
+            <h4>Recently Played</h4>
+            {history.length === 0 ? (
+              <div style={{padding:'10px', color:'#777'}}>No songs yet…</div>
+            ) : (
+              history.map(item => (
+                <div key={item.key} className="hist-item" title={`${item.artist} — ${item.song}`}>
+                  <div className="hist-thumb">
+                    <img
+                      src={isValidCoverUrl(item.cover) && item.cover !== STREAM_LOGO_URL ? item.cover : STREAM_LOGO_URL}
+                      alt={`${item.artist} - ${item.song}`}
+                      onLoad={(e) => e.currentTarget.classList.add('loaded')}
+                      onError={(e) => {
+                        if (e.currentTarget.src !== STREAM_LOGO_URL) e.currentTarget.src = STREAM_LOGO_URL;
+                        e.currentTarget.classList.add('loaded');
+                      }}
+                    />
+                  </div>
+
+                  <div className="hist-meta">
+                    <div className="hist-title">{item.song}</div>
+                    <div className="hist-artist">{item.artist}</div>
+                  </div>
+
+                  <div style={{marginLeft:8}}>
+                    <button
+                      aria-label={`Favorite ${item.artist} - ${item.song}`}
+                      onClick={() => toggleFavorite(item.key || `${item.artist} - ${item.song}`)}
+                      style={{background:'transparent', border:'none', cursor:'pointer', fontSize:18}}
+                    >
+                      {isFavorited(item.key || `${item.artist} - ${item.song}`) ? '★' : '☆'}
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className="status" aria-live="polite">{status}</div>
+        </div>
+
+        <audio ref={audioRef} preload="auto" style={{display:'none'}} aria-hidden="true" />
+      </div>
+    </>
+  );
 }
